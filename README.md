@@ -20,5 +20,7 @@ Never set `SEED_U` or `SEED_PLAN_U` to `Date.now()`, because that causes an endl
 
 ## Config
 
+The Log tab takes weight and macros from Apple Health, e.g. MyFitnessPal. Setup: [`HEALTH-SHORTCUT.md`](HEALTH-SHORTCUT.md).
+
 At the top of the main `<script>`: `GYM`, `OWNER`, `T` (daily targets), `START_WEIGHT`,
 `TRAVEL_CAL` (higher calorie caps for trips), `SEED_PRS` (lifts from before the app) and `SEED_PLAN`.

@@ -130,6 +130,17 @@
   .ex-last .sets{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ex-last .go{color:var(--muted);flex:none}
   .ex-last.none{border-left-color:var(--faint);color:var(--muted)}
+  /* Apple Health paste — the main way weight + macros get in */
+  .hk-sum{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px;text-align:center}
+  .hk-sum div{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:7px 2px 6px}
+  .hk-sum b{display:block;font-family:'Bebas Neue',sans-serif;font-size:21px;line-height:1;font-weight:400;font-variant-numeric:tabular-nums}
+  .hk-sum span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .hk-sum .no b{color:var(--faint)}
+  #hkIn{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.4;min-height:0;resize:vertical}
+  details.manual>summary{list-style:none;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center}
+  details.manual>summary::-webkit-details-marker{display:none}
+  details.manual>summary::after{content:'Show ▸';letter-spacing:1px;color:var(--gold);font-size:10px}
+  details.manual[open]>summary::after{content:'Hide ▾'}
   #dateWarn{display:none;background:var(--gold-dim);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:8px 11px;font-size:12px;margin-top:8px}
   #dateWarn u{cursor:pointer;font-weight:700}
   /* exercise history sheet */
@@ -248,14 +259,23 @@
 
 <!-- LOG -->
 <div class="view wrap" id="v-log">
-  <div class="grid2" style="align-items:end">
-    <div><label class="f" for="fDate">Date</label><input type="date" id="fDate"></div>
-    <div><label class="f" for="fWeight">Weight (lb)</label><input type="number" step="0.1" inputmode="decimal" id="fWeight" placeholder="185.0"></div>
-  </div>
+  <div><label class="f" for="fDate">Date</label><input type="date" id="fDate"></div>
   <div id="dateWarn"></div>
-  <div class="hint">Weigh first thing: wake, bathroom, scale — before food or water.</div>
 
-  <div class="section-title">Nutrition (daily totals)</div>
+  <div class="section-title">From Apple Health</div>
+  <div class="card">
+    <div class="hk-sum" id="hkSum"></div>
+    <textarea id="hkIn" rows="2" placeholder="Run your Garage Health shortcut, then paste here."></textarea>
+    <div style="height:8px"></div>
+    <button class="btn btn-gold" onclick="applyHealth()">Add Health data</button>
+    <div class="hint" id="hkStatus">Weight and MyFitnessPal totals, via Apple Health. Fills in weight and macros only — lifts, cardio and notes are never touched.</div>
+  </div>
+
+  <details class="manual" id="manualBox">
+  <summary>Enter manually</summary>
+  <label class="f" for="fWeight">Weight (lb)</label><input type="number" step="0.1" inputmode="decimal" id="fWeight" placeholder="185.0">
+  <div class="hint">Weigh first thing: wake, bathroom, scale — before food or water.</div>
+  <label class="f" style="margin-top:14px">Nutrition (daily totals)</label>
   <div class="grid4">
     <div><label class="f" for="fCal">Cals</label><input type="number" inputmode="numeric" id="fCal" placeholder="2000"></div>
     <div><label class="f" for="fPro">Protein</label><input type="number" inputmode="numeric" id="fPro" placeholder="180"></div>
@@ -263,6 +283,7 @@
     <div><label class="f" for="fFat">Fat</label><input type="number" inputmode="numeric" id="fFat" placeholder="65"></div>
   </div>
   <div class="hint" id="macroHint"></div>
+  </details>
 
   <div class="section-title">Cardio + HIIT</div>
   <div class="toggle-row">
@@ -931,6 +952,7 @@ function render(){
   if(!logged(d)) d=addDays(d,-1);
   while(logged(d)){ s++; d=addDays(d,-1); }
   $('streakN').textContent=s;
+  renderHK();
 
   const ws=weekStart(t); let html='';
   for(let i=0;i<7;i++){
@@ -1107,6 +1129,68 @@ function loadPlanDay(d){
   else run();
 }
 
+/* ── APPLE HEALTH PASTE ──
+   A web page can't read Apple Health, so an iPhone Shortcut reads it and copies
+   plain "key: value" lines, e.g.
+       date: 2026-09-22
+       weight: 198.4
+       cal: 1950   pro: 182   carb: 170   fat: 62
+   Order doesn't matter, units and commas are ignored, blank or 0 means "no data".
+   Several days can be pasted at once — each "date:" line starts a new day.
+   It MERGES into the day: only weight and macros change; lifts, cardio and notes
+   are left exactly as they were. */
+const HK_KEYS = { weight:'weight', wt:'weight', bodyweight:'weight',
+  cal:'cal', cals:'cal', calories:'cal', energy:'cal', dietaryenergy:'cal', kcal:'cal',
+  pro:'pro', protein:'pro', carb:'carb', carbs:'carb', carbohydrates:'carb', fat:'fat', totalfat:'fat' };
+function hkDate(v){
+  v=String(v||'').trim();
+  let m=v.match(/(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return m[1]+'-'+pad2(+m[2])+'-'+pad2(+m[3]);
+  m=v.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(m) return (m[3].length===2?'20'+m[3]:m[3])+'-'+pad2(+m[1])+'-'+pad2(+m[2]);
+  const x=new Date(v); return isNaN(x)?null:ymd(x);
+}
+function parseHealth(txt){
+  const recs=[]; let cur=null;
+  String(txt||'').split(/[\n;]+|\s{2,}/).forEach(line=>{
+    const m=line.match(/^\s*([A-Za-z ]+?)\s*[:=]\s*(.*?)\s*$/); if(!m) return;
+    const key=m[1].toLowerCase().replace(/\s+/g,''), raw=m[2];
+    if(key==='date'){ const d=hkDate(raw); if(d){ cur={date:d,vals:{}}; recs.push(cur); } return; }
+    const f=HK_KEYS[key]; if(!f) return;
+    const n=parseFloat(raw.replace(/,/g,'').replace(/[^0-9.\-]/g,''));
+    if(!(n>0)) return;                                    // blank or 0 = nothing logged
+    if(!cur){ cur={date:null,vals:{}}; recs.push(cur); }
+    cur.vals[f]= f==='weight' ? Math.round(n*10)/10 : Math.round(n);
+  });
+  return recs.filter(r=>Object.keys(r.vals).length);
+}
+function applyHealth(txt){
+  const src=txt==null?$('hkIn').value:txt;
+  if(!src.trim()){ toast('Tap the box and paste first'); return; }
+  const recs=parseHealth(src);
+  if(!recs.length){ toast('No numbers found — paste the text your shortcut copied'); return; }
+  flushSave();                                             // pending edits land before we merge
+  const now=Date.now(), fb=formDate||todayStr(), out=[];
+  recs.forEach(r=>{
+    const d=r.date||fb, cur=live(d);
+    const e=cur?JSON.parse(JSON.stringify(cur)):{date:d};
+    Object.assign(e,r.vals); e.date=d; e.hk=now; e.u=now;
+    DB.days[d]=e; out.push(d);
+  });
+  DB.prs=computePRs(); writeLocal(); render(); queuePush();
+  if(formDate) loadForm(formDate);                         // show the merged numbers
+  $('hkIn').value='';
+  const days=[...new Set(out)];
+  $('hkStatus').textContent='Added from Health: '+days.map(d=>dow(d)+' '+fmtD(d)).join(', ')+'. Lifts, cardio and notes unchanged.';
+  toast(days.length>1?'Health data added to '+days.length+' days':'Health data added');
+}
+function renderHK(){
+  const el=$('hkSum'); if(!el) return;
+  const e=live(formDate)||{};
+  const cell=(v,l,f)=>'<div class="'+(v==null?'no':'')+'"><b>'+(v==null?'–':f(v))+'</b><span>'+l+'</span></div>';
+  el.innerHTML=cell(e.weight,'lb',v=>v.toFixed(1))+cell(e.cal,'cal',v=>v.toLocaleString('en-US'))
+    +cell(e.pro,'protein',v=>v+'g')+cell(e.carb,'carbs',v=>v+'g')+cell(e.fat,'fat',v=>v+'g');
+}
+$('hkIn').addEventListener('paste',()=>setTimeout(()=>applyHealth(),0));   // paste = done, no extra tap
+
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
 let loading=false, saveT=null;
@@ -1141,6 +1225,7 @@ function loadForm(d){
   $('saveState').textContent='';
   syncTog();
   renderDateWarn();
+  renderHK();
   loading=false;
 }
 function renderDateWarn(){
@@ -1386,6 +1471,7 @@ function readForm(){
     e.lift={session:$('fSession').value,ex};
   }
   e.notes=$('fNotes').value.trim();
+  const prev=live(formDate); if(prev&&prev.hk) e.hk=prev.hk;
   return e;
 }
 const hasContent=e=>e.weight!=null||e.cal!=null||e.pro!=null||e.carb!=null||e.fat!=null||e.ride||e.walk||e.hiit||(e.lift&&e.lift.ex.length)||e.notes;
@@ -1417,7 +1503,7 @@ function doSave(){
   $('delBtn').style.display='block';
   if(newPRs.length) toast('PR! '+newPRs.join(', '));
 }
-document.addEventListener('input',ev=>{ if(ev.target.id!=='fDate' && ev.target.closest('#v-log')) autoSave(); });
+document.addEventListener('input',ev=>{ if(ev.target.id!=='fDate' && ev.target.id!=='hkIn' && ev.target.closest('#v-log')) autoSave(); });
 $('fDate').addEventListener('change',ev=>{ if(ev.target.value) loadForm(ev.target.value); else ev.target.value=formDate; });
 
 /* in-page confirm — the sandbox silently blocks window.confirm */
