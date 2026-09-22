@@ -1,34 +1,36 @@
 # The Garage
 
-A single-file lift, cardio and cut tracker, rebuilt from the setup guide in
-[`GARAGESETUP.md`](GARAGESETUP.md). The whole app is
-[`the-garage-template.html`](the-garage-template.html): no build step and no dependencies.
+A single-file lift, cardio and cut tracker. The whole app is
+[`the-garage-template.html`](the-garage-template.html), with no build step and no dependencies.
+Setup notes are in [`GARAGESETUP.md`](GARAGESETUP.md).
 
 **Live app:** https://claude.ai/artifact/98UF2bdZkXxmStaSLqVpBZ (private to the owner; bookmark it on every device)
 
-## Tabs
+## What's in it
 
-- **Today**: 7-day weight average, a 30-day trend chart, today's macros against targets (a bar turns red on a miss), and the week at a glance.
-- **Log**: weight, macros, lifts (sets × reps, "last time" hints, 🏆 on new PRs), cardio and notes. Tap ✓ on a set to start the rest timer.
-- **Plan**: the weekly program (`SEED_PLAN`). "Load into log" pre-fills a whole session.
-- **PRs**: heaviest set and best estimated 1RM (Epley) per lift.
-- **History**: every logged day, newest first. Tap one to open it.
-- **Export**: a plain-text weekly review to paste into Claude, Sync now, JSON backup and import, and diagnostics.
+- **Home**: this week at a glance (ride, walk and lift dots plus a macro hit/miss bar), a day streak, weight, the 7-day average, lb/week loss rate with coaching, 7-day nutrition averages, Peloton output and walk-mile charts, and the PR board.
+- **Plan**: the weekly program (`SEED_PLAN`). "Load into log" pre-fills the session with target weights and rest times.
+- **Log**: weight, MyFitnessPal (MFP) totals, Peloton, walk and HIIT toggles, and lifts. Tap ✓ on a set and the rest timer runs itself.
+- **History**: every logged day. Tap one to edit it.
+- **Export**: a weekly summary to paste into Claude, Sync now, backup and restore, diagnostics, and clear all.
 
 ## Make it yours
 
-Edit the config block at the top of the `<script id="garage-app">`: `GYM`, `OWNER`, `T` (targets),
-`START_WEIGHT`, `UNIT` and `SEED_PLAN`.
+Edit the config block at the top of the main `<script>`: `GYM`, `OWNER`, `T` (daily targets),
+`START_WEIGHT` and `SEED_PLAN`. `EX_SUGGEST` holds the exercise-name autocomplete list.
 
 ## How sync works
 
-Your log lives inside the published page as JSON (`<script id="garage-data">`). When you leave
-the Log tab or tap Sync, the page republishes itself with the merged data, and every open
-copy reloads to the new version. Between syncs, every edit saves to that device's browser
-storage. Merging is per day, and the newest edit wins.
+It saves to this device's browser storage instantly. When sync runs, it publishes the log as
+`data/log.json` inside the artifact, which reaches every device without a page reload. If
+that isn't allowed, it falls back to republishing the whole page with the log embedded in
+`<script id="seed">`. Merging is per day, and the newest edit wins.
 
-> ⚠️ **Before republishing this file after changing the code:** the live artifact holds your
-> data and this repo copy does not. Read the live artifact first and carry its
-> `garage-data` block into the new version, or export a JSON backup and import it afterwards.
-> Otherwise republishing resets the published log. Days still saved on a device merge back in
-> the next time you sync from that device.
+> ⚠️ Your log lives in the published artifact, not in this repo. Republishing the HTML keeps
+> `data/log.json`, but if sync ever used the whole-page fallback, carry the live page's `seed`
+> block forward (or export a backup first) before republishing a code change.
+
+## Changes from the original template
+
+- The Plan tab maps a plan dated to a past week onto the current week, so "Load into log" logs to today rather than the plan's original date.
+- The Log tab's targets hint now reads from `T` instead of hardcoded numbers.
