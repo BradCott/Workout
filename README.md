@@ -9,6 +9,15 @@ with no build step and no dependencies.
 plan reaches the live app, the Sunday review method, and how to republish without wiping
 the log. `GARAGESETUP.md` is the original, shorter setup note.
 
+## Train tab
+
+- **Week**: the 7-day plan. Build or edit any day, drop in a saved workout, load a day into today, or roll the plan to next week. In-app edits outrank the seeded `SEED_PLAN`.
+- **Workouts**: saved workouts (templates) per place. Create, edit, duplicate, schedule or load into today.
+- **Exercises**: about 260 lifts tagged by muscle and equipment, filterable by place, plus your own custom ones.
+- **Places**: each location's equipment. An exercise is available at a place when the place has everything it needs.
+
+Places, custom exercises and saved workouts sync in `data/log.json` (`locs`, `lib`, `tpl`) and merge newest-edit-wins per record.
+
 ## Weekly plan update (summary)
 
 1. Read the live artifact first, because the log lives there, not in this repo.

@@ -194,6 +194,41 @@
   .empty{font-size:13px;color:var(--muted);padding:14px;text-align:center;line-height:1.5}
   #storeBanner{display:none;background:#3a0d0d;border:1px solid var(--red);color:#ffd7d7;font-size:12.5px;line-height:1.5;padding:11px 14px;margin:10px 14px 0;border-radius:12px}
   #storeBanner u{cursor:pointer}
+  /* ── Train tab: builder, library, places ── */
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:12px}
+  .seg button{background:none;border:none;color:var(--muted);font-size:11.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:9px 2px;border-radius:9px}
+  .seg button.on{background:var(--gold-dim);color:var(--gold)}
+  .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;margin:6px 0;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600;white-space:nowrap}
+  .chip.on{background:var(--gold-dim);border-color:var(--gold);color:var(--gold)}
+  .eqgrid{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .btn.sm{width:auto;padding:9px 12px;font-size:13px;border-radius:10px}
+  .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .loc-tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:5px;padding:2px 6px;margin-left:6px;vertical-align:1px;background:#15202e;color:var(--blue)}
+  .lib-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer}
+  .lib-row:last-child{border-bottom:none}
+  .lib-row .nm{font-weight:600;font-size:14px}
+  .lib-row .mt{font-size:11px;color:var(--muted);margin-top:2px}
+  .lib-row .lr{font-family:'Bebas Neue',sans-serif;font-size:19px;color:var(--gold);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .lib-row .x{background:none;border:none;color:var(--muted);font-size:17px;padding:0 4px}
+  .tpl-ex{font-size:12px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .sheet{position:fixed;inset:0;background:var(--bg);z-index:66;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch}
+  .sheet.on{display:block}
+  #pkWrap{z-index:68}
+  .sheet-head{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;z-index:2}
+  .sheet-head b{font-size:15px;flex:1;text-align:center}
+  .sheet-head .add-link{padding:6px 2px;min-width:56px}
+  .sheet-body{padding:14px 14px 60px;max-width:680px;margin:0 auto}
+  .edrow{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px}
+  .edrow .top{display:flex;gap:6px;align-items:center}
+  .edrow .nmb{flex:1;text-align:left;background:none;border:none;color:var(--white);font-weight:700;font-size:15px;padding:4px 0}
+  .edrow .ic{flex:none;background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;width:34px;height:34px;font-size:14px}
+  .edrow .grid4 input{padding:8px 4px;text-align:center;font-size:15px}
+  .edrow .warn{font-size:11px;color:var(--gold);margin-top:6px}
+  .mini{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:8px 0 3px}
+  .checkline{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--white);margin-top:12px}
+  .checkline input{width:auto}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -252,9 +287,13 @@
 
 <!-- PLAN -->
 <div class="view wrap" id="v-plan">
-  <div class="section-title" id="planTitle">Week plan</div>
-  <div id="planList"></div>
-  <div class="hint">Tap a day for the session. "Load into today" pre-fills today's log with every exercise, target weights and rest times — whichever day of the week you actually lift it. Check sets off as you go and the rest timer runs itself. Reworked together every Sunday night.</div>
+  <div class="seg" id="trSeg">
+    <button data-s="week" onclick="trTab('week')">Week</button>
+    <button data-s="tpl" onclick="trTab('tpl')">Workouts</button>
+    <button data-s="lib" onclick="trTab('lib')">Exercises</button>
+    <button data-s="locs" onclick="trTab('locs')">Places</button>
+  </div>
+  <div id="trBody"></div>
 </div>
 
 <!-- LOG -->
@@ -310,13 +349,14 @@
     <div class="tog" id="tLift" onclick="tog('lift')">Lifted today</div>
   </div>
   <div id="liftFields" style="display:none;margin-top:8px">
-    <label class="f" for="fSession">Session</label>
-    <select id="fSession" onchange="autoSave()">
-      <option>Pull</option><option>Legs</option><option>Push</option><option>Pull + Arms</option><option>Legs #2</option><option>Full Body</option><option>Chest</option><option>Bodyweight</option><option>Other</option>
-    </select>
+    <div class="grid2">
+      <div><label class="f" for="fLoc">Where</label><select id="fLoc" onchange="autoSave()"></select></div>
+      <div><label class="f" for="fSession">Session</label><input id="fSession" list="sessNames" placeholder="Push, Upper…"></div>
+    </div>
+    <datalist id="sessNames"><option value="Push"><option value="Pull"><option value="Legs"><option value="Upper"><option value="Lower"><option value="Full Body"><option value="Arms"><option value="Conditioning"><option value="Office KB"></datalist>
     <label class="f">Exercises · tap ✓ when a set's done and the rest timer starts</label>
     <div id="exList"></div>
-    <button class="add-link" onclick="addEx()">+ Add exercise</button>
+    <button class="add-link" onclick="logAddEx()">+ Add exercise</button>
   </div>
 
   <label class="f" for="fNotes">Notes</label>
@@ -399,6 +439,17 @@
   </div>
 </div>
 
+<!-- WORKOUT EDITOR -->
+<div class="sheet" id="edWrap">
+  <div class="sheet-head"><button class="add-link" onclick="closeEditor()">Cancel</button><b id="edTitle">Workout</b><button class="add-link" style="text-align:right" onclick="edSave()">Save</button></div>
+  <div class="sheet-body" id="edBody"></div>
+</div>
+<!-- EXERCISE PICKER / CHOOSER -->
+<div class="sheet" id="pkWrap">
+  <div class="sheet-head"><button class="add-link" onclick="closePicker()">Close</button><b id="pkTitle">Add exercise</b><span style="min-width:56px"></span></div>
+  <div class="sheet-body" id="pkBody"></div>
+</div>
+
 <!-- REST TIMER BAR -->
 <div class="timerbar" id="timerBar">
   <div class="tt" id="ttTime">1:30</div>
@@ -411,7 +462,7 @@
 
 <nav>
   <button class="on" onclick="go('dash',this)"><span class="i">HM</span>Home</button>
-  <button onclick="go('plan',this)"><span class="i">▦</span>Plan</button>
+  <button onclick="go('plan',this)"><span class="i">▦</span>Train</button>
   <button onclick="go('log',this,true)"><span class="i">+</span>Log</button>
   <button onclick="go('hist',this)"><span class="i">≡</span>History</button>
   <button onclick="go('exp',this)"><span class="i">↑</span>Export</button>
@@ -498,6 +549,306 @@ const SEED_PLAN = {
    newer week wins in mergeDB. Nothing to remember, and never Date.now() — a stamp
    that moves every load makes seeded data look edited (see SEED_U). */
 const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
+
+/* ── EQUIPMENT · PLACES · EXERCISE LIBRARY ──
+   Places and custom exercises live in the synced data (edit them in Train → Places /
+   Exercises); these are only the starting set. An exercise is available at a place when
+   the place has every piece of equipment it lists (no equipment = bodyweight, anywhere). */
+const EQUIP = {bb:'Barbell',rk:'Squat rack',bn:'Bench',db:'Dumbbells',kb:'Kettlebells',ez:'EZ bar',tr:'Trap bar',
+  cb:'Cable',mc:'Machines',sm:'Smith machine',pu:'Pull-up bar',dp:'Dip bars',rg:'Rings',bd:'Bands',lm:'Landmine',
+  gh:'GHD / back ext.',mb:'Med ball',bx:'Plyo box',sl:'Sled',rp:'Battle ropes',aw:'Ab wheel',rw:'Rower',
+  bk:'Bike / Peloton',tm:'Treadmill',sk:'SkiErg',ab:'Assault bike',jr:'Jump rope',ro:'Outdoor route'};
+const MUSCLE = {CH:'Chest',BK:'Back',SH:'Shoulders',TP:'Traps',BI:'Biceps',TR:'Triceps',FA:'Grip',QD:'Quads',
+  HM:'Hamstrings',GL:'Glutes',CF:'Calves',CR:'Core',FB:'Full body',CD:'Cardio'};
+const SEED_LOCS = {
+  gym:   {name:'Commercial Gym', ord:1, eq:Object.keys(EQUIP)},
+  home:  {name:'Home Gym',       ord:2, eq:['db','kb','rw','bk','ro']},
+  office:{name:'Office Gym',     ord:3, eq:['kb','rg','bn']},
+  hiit:  {name:'HIIT Gym',       ord:4, eq:['db','kb','mb','bx','rw','ab','sk','jr','bd'], cls:true},
+};
+/* muscle code · name : equipment codes */
+const LIB_SRC = `
+CH Barbell Bench Press: bb rk bn
+CH Barbell Incline Bench: bb rk bn
+CH Barbell Decline Bench: bb rk bn
+CH Paused Bench Press: bb rk bn
+CH Floor Press: bb rk
+CH DB Bench Press: db bn
+CH DB Incline Press: db bn
+CH DB Decline Press: db bn
+CH DB Floor Press: db
+CH Dumbbell Flyes: db bn
+CH Incline DB Flye: db bn
+CH DB Squeeze Press: db bn
+CH DB Pullover: db bn
+CH KB Floor Press: kb
+CH KB Bench Press: kb bn
+CH Smith Machine Bench: sm bn
+CH Smith Incline Press: sm bn
+CH Machine Chest Press: mc
+CH Pec Deck: mc
+CH Cable Crossover: cb
+CH Low-to-High Cable Flye: cb
+CH Band Chest Press: bd
+CH Push-Up
+CH Incline Push-Up: bn
+CH Decline Push-Up: bn
+CH Weighted Push-Up
+CH Push-Up Burnout
+CH Ring Push-Up: rg
+CH Ring Dip: rg
+CH Chest Dip: dp
+BK Barbell Deadlift: bb
+BK Trap Bar Deadlift: tr
+BK Rack Pull: bb rk
+BK Barbell Bent-Over Row: bb
+BK Pendlay Row: bb
+BK Yates Row: bb
+BK Seal Row: bb bn
+BK Meadows Row: bb lm
+BK T-Bar Row: bb lm
+BK Inverted Row: bb rk
+BK DB Row: db bn
+BK Chest-Supported DB Row: db bn
+BK Renegade Row: db
+BK KB Row: kb
+BK Single-Arm KB Row: kb
+BK KB Gorilla Row: kb
+BK Pull-Up: pu
+BK Wide-Grip Pull-Ups: pu
+BK Chin-Up: pu
+BK Neutral-Grip Pull-Up: pu
+BK Weighted Pull-Up: pu
+BK Negative Pull-Up: pu
+BK Assisted Pull-Up: mc
+BK Ring Row: rg
+BK Ring Pull-Up: rg
+BK Lat Pulldown: cb
+BK Close-Grip Pulldown: cb
+BK Straight-Arm Pulldown: cb
+BK Seated Cable Row: cb
+BK Single-Arm Cable Row: cb
+BK Machine Row: mc
+BK Band Row: bd
+BK Band Lat Pulldown: bd
+BK Back Extension: gh
+BK Superman
+SH Barbell OHP: bb rk
+SH Push Press: bb rk
+SH Z Press: bb
+SH Landmine Press: bb lm
+SH Seated DB Press: db bn
+SH Standing DB Press: db
+SH Arnold Press: db
+SH KB Press: kb
+SH KB Push Press: kb
+SH Half-Kneeling KB Press: kb
+SH Bottoms-Up KB Press: kb
+SH Machine Shoulder Press: mc
+SH Smith Shoulder Press: sm bn
+SH Lateral Raise: db
+SH Cable Lateral Raise: cb
+SH Machine Lateral Raise: mc
+SH Front Raise: db
+SH Rear Delt Flye: db
+SH Reverse Pec Deck: mc
+SH Cable Rear Delt Flye: cb
+SH Face Pull: cb
+SH Band Face Pull: bd
+SH Band Pull-Apart: bd
+SH Ring Face Pull: rg
+SH Y-T-W Raise: db bn
+SH DB Upright Row: db
+SH KB Halo: kb
+SH Pike Push-Up
+SH Handstand Push-Up
+TP Barbell Shrug: bb
+TP DB Shrug: db
+TP Trap Bar Shrug: tr
+TP KB Shrug: kb
+TP Upright Row: bb
+BI Barbell Curl: bb
+BI EZ Bar Curl: ez
+BI EZ Bar 21s: ez
+BI Preacher Curl: ez mc
+BI DB Curl: db
+BI Hammer Curl: db
+BI Incline DB Curl: db bn
+BI Concentration Curl: db bn
+BI Spider Curl: db bn
+BI Zottman Curl: db
+BI KB Curl: kb
+BI Cable Curl: cb
+BI Rope Hammer Curl: cb
+BI Bayesian Cable Curl: cb
+BI Ring Curl: rg
+BI Band Curl: bd
+TR Close Grip Bench: bb rk bn
+TR JM Press: bb rk bn
+TR EZ Bar Skull Crusher: ez bn
+TR DB Skull Crusher: db bn
+TR Overhead DB Extension: db
+TR Tate Press: db bn
+TR DB Kickback: db
+TR KB Overhead Extension: kb
+TR Triceps Pushdown: cb
+TR Rope Pushdown: cb
+TR Overhead Cable Extension: cb
+TR Band Pushdown: bd
+TR Dip: dp
+TR Bench Dip: bn
+TR Ring Triceps Extension: rg
+TR Diamond Push-Ups
+FA Reverse Curl: ez
+FA Wrist Curl: db
+FA Reverse Wrist Curl: db
+FA Farmer Carry: db
+FA KB Farmer Carry: kb
+FA Bottoms-Up KB Carry: kb
+FA Dead Hang: pu
+QD Barbell Back Squat: bb rk
+QD Front Squat: bb rk
+QD Pause Squat: bb rk
+QD Box Squat: bb rk bx
+QD Zercher Squat: bb
+QD Barbell Lunge: bb rk
+QD Smith Machine Squat: sm
+QD Hack Squat: mc
+QD Leg Press: mc
+QD Leg Extension: mc
+QD Goblet Squat: db
+QD KB Goblet Squat: kb
+QD Heels-Elevated Goblet Squat: db
+QD Double KB Front Squat: kb
+QD Bulgarian Split Squat: db bn
+QD KB Bulgarian Split Squat: kb bn
+QD FFE Split Squat: db
+QD Split Squat: db
+QD Walking Lunge: db
+QD DB Reverse Lunge: db
+QD KB Reverse Lunge: kb
+QD Step-Up: db bn
+QD KB Step-Up: kb bn
+QD Cossack Squat: kb
+QD Sled Push: sl
+QD Bodyweight Squat
+QD Jump Squat
+QD Pistol Squat
+QD Sissy Squat
+QD Wall Sit
+HM Barbell RDL: bb
+HM Stiff-Leg Deadlift: bb
+HM Sumo Deadlift: bb
+HM Good Morning: bb rk
+HM Dumbbell RDL: db
+HM KB RDL: kb
+HM Single-Leg RDL: db
+HM KB Single-Leg RDL: kb
+HM KB Deadlift: kb
+HM KB Sumo Deadlift: kb
+HM Lying Leg Curl: mc
+HM Seated Leg Curl: mc
+HM Glute-Ham Raise: gh
+HM Nordic Curl
+HM Slider Leg Curl
+GL Hip Thrust: bb bn
+GL DB Hip Thrust: db bn
+GL Glute Bridge
+GL Single-Leg Glute Bridge
+GL KB Swing: kb
+GL Single-Arm KB Swing: kb
+GL Cable Pull-Through: cb
+GL Cable Kickback: cb
+GL Hip Abduction Machine: mc
+GL Band Lateral Walk: bd
+GL Frog Pump
+CF Barbell Calf Raise: bb rk
+CF Machine Calf Raise: mc
+CF Seated Calf Raise: mc
+CF DB Calf Raise: db
+CF KB Calf Raise: kb
+CF Single-Leg Calf Raise
+CR Plank
+CR Side Plank
+CR Copenhagen Plank: bn
+CR Dead Bug
+CR Bird Dog
+CR Hollow Hold
+CR V-Up
+CR Bicycle Crunch
+CR Russian Twist
+CR Mountain Climbers
+CR Hanging Leg Raise: pu
+CR Hanging Knee Raise: pu
+CR Toes-to-Bar: pu
+CR Ring Knee Tuck: rg
+CR Ring L-Sit: rg
+CR Ab Wheel Rollout: aw
+CR Cable Crunch: cb
+CR Cable Woodchop: cb
+CR Pallof Press: cb
+CR Band Pallof Press: bd
+CR Decline Sit-Up: bn
+CR Dragon Flag: bn
+CR Suitcase Carry: kb
+CR KB Windmill: kb
+CR Landmine Rotation: bb lm
+FB Turkish Get-Up: kb
+FB Power Clean: bb
+FB Hang Clean: bb
+FB Clean and Jerk: bb
+FB Snatch: bb
+FB Barbell Thruster: bb
+FB DB Snatch: db
+FB DB Thruster: db
+FB Devil Press: db
+FB Man Maker: db
+FB KB Clean: kb
+FB Double KB Clean: kb
+FB KB Clean and Press: kb
+FB KB Snatch: kb
+FB KB Thruster: kb
+FB KB Complex: kb
+FB Burpees
+FB Burpee Box Jump: bx
+FB Box Jump: bx
+FB Broad Jump
+FB Wall Ball: mb
+FB Med Ball Slam: mb
+FB Sled Drag: sl
+FB Battle Ropes: rp
+FB Bear Crawl
+FB Jumping Jacks
+FB High Knees
+CD Outdoor Run: ro
+CD Sprints: ro
+CD Treadmill Run: tm
+CD Incline Walk: tm
+CD Rower: rw
+CD Row Intervals: rw
+CD Peloton Ride: bk
+CD Assault Bike: ab
+CD SkiErg: sk
+CD Jump Rope: jr
+CD Stair Climber: mc
+`;
+const slug = n=>String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const LIB = LIB_SRC.trim().split('\n').map(l=>{
+  l=l.trim(); if(!l) return null;
+  const i=l.indexOf(':'), name=(i<0?l.slice(3):l.slice(3,i)).trim();
+  return {id:slug(name), name, m:l.slice(0,2), eq:i<0?[]:l.slice(i+1).trim().split(/\s+/).filter(Boolean)};
+}).filter(Boolean);
+/* starter workouts — weights blank on purpose: set yours the first time you lift them */
+const tx=(name,n,r,rest,note)=>({name,rx:n+'×'+r,rest,note:note||'',sets:sets(n,'',parseInt(r)||'')});
+const SEED_TPL = {
+  'office-kb':{title:'Office KB + Rings',loc:'office',kind:'lift',sub:'Starter — set your weights',ex:[
+    tx('KB Goblet Squat',3,10,90), tx('Ring Row',3,10,75,'Walk your feet forward to make it harder.'),
+    tx('KB Bench Press',3,10,90), tx('KB Swing',3,15,60), tx('Half-Kneeling KB Press',3,'8 / side',75),
+    tx('Ring Knee Tuck',3,10,45)]},
+  'home-full':{title:'Home DB + KB Full Body',loc:'home',kind:'lift',sub:'Starter — set your weights',ex:[
+    tx('Goblet Squat',4,8,90), tx('DB Floor Press',3,10,90), tx('Renegade Row',3,'8 / side',75),
+    tx('Dumbbell RDL',3,10,90), tx('KB Swing',3,15,60), tx('Farmer Carry',3,'40 steps',60)]},
+};
 
 /* ── HELPERS ── */
 const $ = id=>document.getElementById(id);
@@ -605,6 +956,10 @@ function mergeDB(a,b){
     if(!y){out.prs[k]=x;return}
     out.prs[k]=(y.w>x.w||(y.w===x.w&&y.r>x.r))?y:x;
   });
+  // places, custom exercises and saved workouts: newest edit per record wins
+  const mm=(x,y)=>{const o={};new Set(Object.keys(x||{}).concat(Object.keys(y||{}))).forEach(k=>{
+    const p=(x||{})[k],q=(y||{})[k]; o[k]=!p?q:!q?p:((q.u||0)>=(p.u||0)?q:p);}); return o;};
+  out.locs=mm(a.locs,b.locs); out.lib=mm(a.lib,b.lib); out.tpl=mm(a.tpl,b.tpl);
   out.planU=Math.max(a.planU||0,b.planU||0);
   out.plan=((b.planU||0)>=(a.planU||0)?b.plan:a.plan)||a.plan||b.plan||null;
   return out;
@@ -677,7 +1032,8 @@ function stable(o){
   if(!o) return '';
   const d=Object.keys(o.days||{}).sort().map(k=>k+':'+JSON.stringify(o.days[k])).join('|');
   const p=Object.keys(o.prs||{}).sort().map(k=>k+':'+JSON.stringify(o.prs[k])).join('|');
-  return d+'##'+p+'##'+(o.planU||0);
+  const mp=m=>Object.keys(m||{}).sort().map(k=>k+':'+JSON.stringify(m[k])).join('|');
+  return d+'##'+p+'##'+(o.planU||0)+'##'+mp(o.locs)+'##'+mp(o.lib)+'##'+mp(o.tpl);
 }
 /* Loop guard. A whole-page publish reloads us, so a bug can publish in a tight
    loop. Catch the RATE, not the lifetime: publishes further apart than PUB_QUIET
@@ -785,7 +1141,7 @@ async function syncNow(){
   clearTimeout(pushT);
   resetPub(); pubN=0; pubAt=0;      // explicit request always allowed through the loop guard
   const cloud=await fetchCloud();
-  if(cloud){ DB=mergeDB(DB,cloud); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); }
+  if(cloud){ DB=mergeDB(DB,cloud); seedDefaults(); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); }
   pendingSync=false;
   await pushCloud();
   if(syncState==='ok') toast('Synced');
@@ -831,6 +1187,7 @@ async function load(){
   DB=mergeDB(localData||{days:{},prs:{}}, seed||{days:{},prs:{}});
   DB.days=DB.days||{};
   if(!DB.plan || (DB.planU||0)<SEED_PLAN_U){ DB.plan=SEED_PLAN; DB.planU=SEED_PLAN_U; }
+  seedDefaults();
   DB.prs=computePRs();
 
   localOK=writeLocal();
@@ -851,7 +1208,7 @@ async function load(){
   if(!ART){ setSync('local'); return; }
 
   const cloud=await fetchCloud();
-  if(cloud){ DB=mergeDB(DB,cloud); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); refreshForm(); }
+  if(cloud){ DB=mergeDB(DB,cloud); seedDefaults(); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); refreshForm(); }
 
   // nothing to send? then we're already in sync — do NOT publish, or a whole-page
   // publish reloads us straight back into this branch and we loop forever.
@@ -1084,37 +1441,326 @@ function bars7(id,H,pick,color,label,rangeId,fmt){
 const drawRides = ()=>bars7('rideChart',130,e=>e.ride&&e.ride.out,'#ef4444','No rides logged in the last 7 days','rideRange',v=>String(Math.round(v)));
 const drawWalks = ()=>bars7('walkChart',130,e=>e.walk&&e.walk.mi,'#2dd4bf','No walks logged in the last 7 days','walkRange',v=>v.toFixed(1));
 
-/* ── PLAN ── */
-function renderPlan(){
-  const plan=DB.plan; if(!plan) return;
-  $('planTitle').textContent='Week of '+fmtD(plan.weekOf);
-  const t=todayStr();
-  $('planList').innerHTML=Object.keys(plan.days).sort().map(d=>{
-    const p=plan.days[d];
-    const badge=p.kind==='rest'?'<span class="badge rest">Rest</span>':p.kind==='flex'?'<span class="badge opt">Droppable</span>':p.kind==='hiit'?'<span class="badge opt">HIIT</span>':p.kind==='travel'?'<span class="badge opt">Travel</span>':'';
-    const exHtml=p.ex.map(x=>
-      '<div class="pex"><div class="pex-head"><span class="pex-name">'+esc(x.name)+(x.opt?'<span class="badge opt">Optional</span>':'')+'</span><span class="pex-rx">'+esc(x.rx)+'</span></div>'+(x.note?'<div class="pex-note">'+esc(x.note)+'</div>':'')+'</div>'
-    ).join('')||'<div class="empty" style="padding:8px">Nothing on the bar today. That’s the plan working.</div>';
-    const loadBtn=(p.kind==='lift'||p.kind==='flex')?'<div style="height:8px"></div><button class="btn btn-gold" onclick="event.stopPropagation();loadPlanDay(\''+d+'\')">Load into today</button>':'';
-    return '<div class="pday '+(d===t?'today open':'')+'">'
-      +'<div class="pday-head" onclick="this.parentElement.classList.toggle(\'open\')">'
-      +'<div class="pd">'+dow(d).toUpperCase()+'<small>'+fmtD(d)+'</small></div>'
-      +'<div class="pt"><div class="t1">'+esc(p.title)+badge+'</div><div class="t2">'+esc(p.sub)+'</div></div>'
-      +'<div class="chev">▶</div></div>'
-      +'<div class="pday-body">'+exHtml+loadBtn+'</div></div>';
-  }).join('');
+/* ── TRAIN TAB ── week plan · saved workouts · exercise library · places ── */
+const clone = o=>JSON.parse(JSON.stringify(o));
+const newId = ()=>'w'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const liveMap = m=>Object.keys(m||{}).filter(k=>m[k]&&!m[k].deleted);
+function seedDefaults(){
+  DB.locs=DB.locs||{}; DB.lib=DB.lib||{}; DB.tpl=DB.tpl||{};
+  // fixed stamp (SEED_U) — a fresh one every load would look like an edit and loop the sync
+  for(const k in SEED_LOCS) if(!DB.locs[k]) DB.locs[k]=Object.assign(clone(SEED_LOCS[k]),{u:SEED_U});
+  for(const k in SEED_TPL) if(!DB.tpl[k]) DB.tpl[k]=Object.assign(clone(SEED_TPL[k]),{u:SEED_U});
 }
-function loadPlanDay(d){
-  const p=DB.plan.days[d]; if(!p) return;
+const liveLocs = ()=>liveMap(DB.locs).map(id=>Object.assign({id},DB.locs[id])).sort((a,b)=>(a.ord||99)-(b.ord||99)||a.name.localeCompare(b.name));
+const locName = id=>{const l=DB.locs&&DB.locs[id]; return l&&!l.deleted?l.name:'';};
+function allEx(){
+  const seen=new Set(), out=[];
+  liveMap(DB.lib).forEach(id=>{const x=DB.lib[id]; out.push({id,name:x.name,m:x.m||'FB',eq:x.eq||[],custom:true}); seen.add(normName(x.name));});
+  LIB.forEach(x=>{ if(!seen.has(normName(x.name))) out.push(x); });
+  return out.sort((a,b)=>a.name.localeCompare(b.name));
+}
+function findEx(name){ const k=normName(name); return allEx().find(x=>normName(x.name)===k)||null; }
+const canDo = (x,loc)=>!loc||!x.eq.length||x.eq.every(e=>(loc.eq||[]).includes(e));
+function restFor(name){
+  const x=findEx(name); if(!x) return 90;
+  if(x.m==='CD') return 60;
+  if(['BI','TR','CF','CR','FA','TP'].includes(x.m)) return 60;
+  return x.eq.some(e=>e==='bb'||e==='tr')?150:90;
+}
+function defaultLoc(){
+  const ds=sorted().reverse();
+  for(const d of ds){ const l=live(d).lift; if(l&&l.loc&&locName(l.loc)) return l.loc; }
+  const ls=liveLocs(); return ls.length?ls[0].id:'';
+}
+function renderLocSelect(){
+  const el=$('fLoc'); if(!el) return; const v=el.value;
+  el.innerHTML='<option value="">—</option>'+liveLocs().map(l=>'<option value="'+esc(l.id)+'">'+esc(l.name)+'</option>').join('');
+  el.value=v;
+}
+const eqLabel = x=>x.eq.length?x.eq.map(e=>EQUIP[e]||e).join(', '):'Bodyweight';
+const autoSub = p=>{const n=(p.ex||[]).length, s=(p.ex||[]).reduce((a,x)=>a+(x.sets||[]).length,0); return n?n+' exercise'+(n>1?'s':'')+(s?' · '+s+' sets':''):'';};
+const KIND = {lift:'Lift',flex:'Optional',hiit:'HIIT class',cardio:'Cardio',rest:'Rest',travel:'Travel'};
+const kindBadge = k=>k==='rest'?'<span class="badge rest">Rest</span>':(k&&k!=='lift')?'<span class="badge opt">'+(KIND[k]||k)+'</span>':'';
+const locTag = id=>locName(id)?'<span class="loc-tag">'+esc(locName(id))+'</span>':'';
+const loadable = p=>p&&['lift','flex','hiit','cardio'].includes(p.kind||'lift')&&(p.ex||[]).length;
+const exLines = p=>(p.ex||[]).map(x=>'<div class="pex"><div class="pex-head"><span class="pex-name">'+esc(x.name)+(x.opt?'<span class="badge opt">Optional</span>':'')+'</span><span class="pex-rx">'+esc(x.rx||'')+'</span></div>'+(x.note?'<div class="pex-note">'+esc(x.note)+'</div>':'')+'</div>').join('');
+
+let TR={tab:'week', open:{}, tplLoc:'all', locF:'all', mF:'all', q:'', cx:null};
+function trTab(t){ TR.tab=t; renderPlan(); window.scrollTo(0,0); }
+function renderPlan(){
+  const b=$('trBody'); if(!b||!DB.locs) return;
+  document.querySelectorAll('#trSeg button').forEach(x=>x.classList.toggle('on',x.dataset.s===TR.tab));
+  b.innerHTML=TR.tab==='week'?viewWeek():TR.tab==='tpl'?viewTpl():TR.tab==='lib'?viewLib():viewLocs();
+  if(TR.tab==='lib') renderLibList();
+}
+function editablePlan(){
+  if(!DB.plan||DB.plan===SEED_PLAN) DB.plan=clone(DB.plan||{weekOf:weekStart(todayStr()),days:{}});
+  return DB.plan;
+}
+/* an in-app edit must outrank the seeded week, or the next load would put the seed back */
+function planTouch(){ DB.planU=Math.max(Date.now(),SEED_PLAN_U+1); writeLocal(); queuePush(); renderPlan(); }
+function dataTouch(){ writeLocal(); queuePush(); renderPlan(); }
+
+/* ── WEEK ── */
+function viewWeek(){
+  const plan=DB.plan||{weekOf:weekStart(todayStr()),days:{}}, t=todayStr(), ws=weekStart(plan.weekOf), cur=weekStart(t);
+  let h='<div class="section-title" style="margin-top:0">Week of '+fmtD(ws)+(ws<cur?' · past':ws>cur?' · upcoming':' · this week')+'</div>'
+    +'<div class="actions" style="margin:0 0 12px">'
+    +(ws!==cur?'<button class="btn btn-gold sm" onclick="shiftWeek(0)">Move to this week</button>':'')
+    +'<button class="btn btn-dark sm" onclick="shiftWeek(1)">Roll to next week</button>'
+    +'<button class="btn btn-dark sm" onclick="clearWeek()">Clear week</button></div>';
+  for(let i=0;i<7;i++){ const d=addDays(ws,i); h+=dayCard(d,(plan.days||{})[d],d===t); }
+  return h+'<div class="hint">Tap a day to open it. <b>Load into today</b> pre-fills today’s log with every exercise, target and rest time — whichever day you actually train. Build or change any day with <b>Edit</b>, or drop in a saved workout.</div>';
+}
+function dayCard(d,p,isToday){
+  const open=TR.open[d]!=null?TR.open[d]:isToday;
+  const head='<div class="pday-head" onclick="togDay(this,\''+d+'\')"><div class="pd">'+dow(d).toUpperCase()+'<small>'+fmtD(d)+'</small></div>'
+    +'<div class="pt"><div class="t1">'+(p?esc(p.title||'Workout')+kindBadge(p.kind)+locTag(p.loc):'<span style="color:var(--muted)">Nothing planned</span>')+'</div>'
+    +'<div class="t2">'+esc(p?(p.sub||autoSub(p)):'Tap to build a workout')+'</div></div><div class="chev">▶</div></div>';
+  const btns=p
+    ?(loadable(p)?'<button class="btn btn-gold sm" onclick="loadPlanDay(\''+d+'\')">Load into today</button>':'')
+     +'<button class="btn btn-dark sm" onclick="editPlanDay(\''+d+'\')">Edit</button>'
+     +'<button class="btn btn-dark sm" onclick="pickTplFor(\''+d+'\')">Use saved workout</button>'
+     +((p.ex||[]).length?'<button class="btn btn-dark sm" onclick="dayToTpl(\''+d+'\')">Save to Workouts</button>':'')
+     +'<button class="btn btn-dark sm" onclick="clearDay(\''+d+'\')">Clear</button>'
+    :'<button class="btn btn-gold sm" onclick="editPlanDay(\''+d+'\')">+ Build workout</button>'
+     +'<button class="btn btn-dark sm" onclick="pickTplFor(\''+d+'\')">Use saved workout</button>'
+     +'<button class="btn btn-dark sm" onclick="restDay(\''+d+'\')">Rest day</button>';
+  return '<div class="pday '+(isToday?'today ':'')+(open?'open':'')+'">'+head
+    +'<div class="pday-body">'+(p?exLines(p)||(p.kind==='rest'?'<div class="empty" style="padding:8px">Nothing on the bar today. That’s the plan working.</div>':''):'')
+    +'<div class="actions">'+btns+'</div></div></div>';
+}
+function togDay(h,d){ const el=h.parentElement; const o=!el.classList.contains('open'); el.classList.toggle('open',o); TR.open[d]=o; }
+function editPlanDay(d){ openEditor('plan',d,(DB.plan&&DB.plan.days[d])||{title:'',loc:defaultLoc(),kind:'lift',ex:[]}); }
+function restDay(d){ editablePlan().days[d]={kind:'rest',title:'Rest',sub:'',ex:[]}; planTouch(); }
+function clearDay(d){ askConfirm('Clear '+dow(d)+' '+fmtD(d)+' from the plan?',()=>{ delete editablePlan().days[d]; planTouch(); }); }
+function dayToTpl(d){ const p=DB.plan.days[d]; DB.tpl[newId()]=Object.assign(clone(p),{u:Date.now()}); dataTouch(); toast('Saved “'+(p.title||'Workout')+'” to Workouts'); }
+function pickTplFor(d){
+  const ids=liveMap(DB.tpl).sort((a,b)=>(DB.tpl[a].title||'').localeCompare(DB.tpl[b].title||''));
+  if(!ids.length){ toast('No saved workouts yet — build one in Workouts'); return; }
+  openList('Use on '+dow(d)+' '+fmtD(d), ids.map(id=>({label:DB.tpl[id].title||'Workout', sub:[locName(DB.tpl[id].loc),DB.tpl[id].sub||autoSub(DB.tpl[id])].filter(Boolean).join(' · '),
+    fn:()=>{ const c=clone(DB.tpl[id]); delete c.u; editablePlan().days[d]=c; TR.open[d]=true; planTouch(); toast('Added to '+dow(d)); }})));
+}
+function shiftWeek(next){
+  const plan=editablePlan(), ws=weekStart(plan.weekOf), target=next?addDays(ws,7):weekStart(todayStr());
+  const diff=Math.round((new Date(target+'T12:00')-new Date(ws+'T12:00'))/864e5);
+  if(!diff) return;
+  const days={}; Object.keys(plan.days||{}).forEach(k=>{ days[addDays(k,diff)]=plan.days[k]; });
+  plan.days=days; plan.weekOf=target; TR.open={}; planTouch(); toast('Plan now covers the week of '+fmtD(target));
+}
+function clearWeek(){ askConfirm('Clear every day of this week’s plan? Saved workouts and your log are not touched.',()=>{ editablePlan().days={}; planTouch(); }); }
+
+/* ── SAVED WORKOUTS ── */
+function viewTpl(){
+  const locs=liveLocs();
+  let ids=liveMap(DB.tpl); if(TR.tplLoc!=='all') ids=ids.filter(id=>DB.tpl[id].loc===TR.tplLoc);
+  ids.sort((a,b)=>(DB.tpl[a].title||'').localeCompare(DB.tpl[b].title||''));
+  let h='<button class="btn btn-gold" onclick="openEditor(\'tpl\',null,{loc:TR.tplLoc!==\'all\'?TR.tplLoc:defaultLoc()})">+ New workout</button>'
+    +'<div class="chips"><button class="chip'+(TR.tplLoc==='all'?' on':'')+'" onclick="TR.tplLoc=\'all\';renderPlan()">All places</button>'
+    +locs.map(l=>'<button class="chip'+(TR.tplLoc===l.id?' on':'')+'" onclick="TR.tplLoc=\''+l.id+'\';renderPlan()">'+esc(l.name)+'</button>').join('')+'</div>';
+  if(!ids.length) return h+'<div class="empty">No saved workouts here yet. Build one, or save a day from your Week.</div>';
+  return h+ids.map(id=>{const p=DB.tpl[id];
+    return '<div class="card"><div class="t1" style="font-weight:700;font-size:15px">'+esc(p.title||'Workout')+kindBadge(p.kind)+locTag(p.loc)+'</div>'
+      +'<div class="hint" style="margin-top:3px">'+esc(p.sub||autoSub(p))+'</div>'
+      +'<div class="tpl-ex">'+(p.ex||[]).map(x=>esc(x.name)+(x.rx?' <span style="color:var(--gold)">'+esc(x.rx)+'</span>':'')).join(' · ')+'</div>'
+      +'<div class="actions">'+(loadable(p)?'<button class="btn btn-gold sm" onclick="loadTpl(\''+id+'\')">Load into today</button>':'')
+      +'<button class="btn btn-dark sm" onclick="schedTpl(\''+id+'\')">Schedule</button>'
+      +'<button class="btn btn-dark sm" onclick="openEditor(\'tpl\',\''+id+'\',DB.tpl[\''+id+'\'])">Edit</button>'
+      +'<button class="btn btn-dark sm" onclick="dupTpl(\''+id+'\')">Duplicate</button>'
+      +'<button class="btn btn-dark sm" onclick="delTpl(\''+id+'\')">Delete</button></div></div>';}).join('');
+}
+function schedTpl(id){
+  const plan=DB.plan||{weekOf:weekStart(todayStr()),days:{}}, ws=weekStart(plan.weekOf);
+  openList('Schedule “'+(DB.tpl[id].title||'Workout')+'”', Array.from({length:7},(_,i)=>{const d=addDays(ws,i), p=(plan.days||{})[d];
+    return {label:dow(d)+' '+fmtD(d), sub:p?'Replaces: '+(p.title||'Workout'):'Nothing planned',
+      fn:()=>{ const c=clone(DB.tpl[id]); delete c.u; editablePlan().days[d]=c; TR.open[d]=true; planTouch(); toast('Scheduled for '+dow(d)); }};}));
+}
+function dupTpl(id){ const c=clone(DB.tpl[id]); c.title=(c.title||'Workout')+' (copy)'; c.u=Date.now(); DB.tpl[newId()]=c; dataTouch(); }
+function delTpl(id){ askConfirm('Delete the saved workout “'+(DB.tpl[id].title||'Workout')+'”? Days already planned or logged keep their copy.',()=>{ DB.tpl[id]={deleted:true,u:Date.now()}; dataTouch(); }); }
+
+/* ── EXERCISE LIBRARY ── */
+function viewLib(){
+  const locs=liveLocs();
+  let h='<input id="exQ" placeholder="Search '+allEx().length+' exercises" value="'+esc(TR.q)+'" oninput="TR.q=this.value;renderLibList()">'
+    +'<div class="chips"><button class="chip'+(TR.locF==='all'?' on':'')+'" onclick="TR.locF=\'all\';renderPlan()">Any place</button>'
+    +locs.map(l=>'<button class="chip'+(TR.locF===l.id?' on':'')+'" onclick="TR.locF=\''+l.id+'\';renderPlan()">'+esc(l.name)+'</button>').join('')+'</div>'
+    +'<div class="chips" style="margin-top:0"><button class="chip'+(TR.mF==='all'?' on':'')+'" onclick="TR.mF=\'all\';renderPlan()">All muscles</button>'
+    +Object.keys(MUSCLE).map(m=>'<button class="chip'+(TR.mF===m?' on':'')+'" onclick="TR.mF=\''+m+'\';renderPlan()">'+MUSCLE[m]+'</button>').join('')+'</div>';
+  h+= TR.cx ? customForm() : '<button class="add-link" onclick="TR.cx={name:TR.q,m:TR.mF!==\'all\'?TR.mF:\'FB\',eq:[]};renderPlan()">+ Add your own exercise</button>';
+  return h+'<div class="card" id="libList" style="margin-top:6px"></div>';
+}
+function libFilter(q,locId,m){
+  const loc=locId&&locId!=='all'?DB.locs[locId]:null; q=String(q||'').trim().toLowerCase();
+  return allEx().filter(x=>(!q||x.name.toLowerCase().includes(q)||(MUSCLE[x.m]||'').toLowerCase().includes(q))&&(m==='all'||x.m===m)&&canDo(x,loc));
+}
+function renderLibList(){
+  const el=$('libList'); if(!el) return;
+  const xs=libFilter(TR.q,TR.locF,TR.mF);
+  el.innerHTML='<div class="hint" style="margin:0 0 4px">'+xs.length+' exercise'+(xs.length===1?'':'s')+' · tap one for its history</div>'
+    +(xs.length?xs.map(x=>{const pr=DB.prs[canon(x.name)];
+      return '<div class="lib-row" data-n="'+esc(x.name)+'" onclick="openExHist(this.dataset.n)"><div><div class="nm">'+esc(x.name)+(x.custom?'<span class="badge opt">Yours</span>':'')+'</div>'
+        +'<div class="mt">'+(MUSCLE[x.m]||'')+' · '+esc(eqLabel(x))+'</div></div>'
+        +'<div style="display:flex;align-items:center;gap:4px">'+(pr?'<span class="lr">'+pr.w+'<small style="font-family:Inter,sans-serif;font-size:11px;color:var(--muted)"> × '+pr.r+'</small></span>':'')
+        +(x.custom?'<button class="x" title="Delete" onclick="event.stopPropagation();delCustom(\''+x.id+'\')">×</button>':'')+'</div></div>';}).join('')
+      :'<div class="empty">Nothing matches. Try another place or muscle, or add it as your own.</div>');
+}
+function customForm(){
+  const c=TR.cx;
+  return '<div class="card" style="margin-top:6px"><div class="section-title" style="margin-top:0">New exercise</div>'
+    +'<input id="cxName" placeholder="Name, e.g. Landmine Row" value="'+esc(c.name||'')+'" oninput="TR.cx.name=this.value">'
+    +'<label class="f">Main muscle</label><select onchange="TR.cx.m=this.value">'+Object.keys(MUSCLE).map(m=>'<option value="'+m+'"'+(c.m===m?' selected':'')+'>'+MUSCLE[m]+'</option>').join('')+'</select>'
+    +'<label class="f">Equipment it needs (none = bodyweight)</label><div class="eqgrid">'
+    +Object.keys(EQUIP).map(e=>'<button class="chip'+(c.eq.includes(e)?' on':'')+'" onclick="cxEq(\''+e+'\')">'+EQUIP[e]+'</button>').join('')+'</div>'
+    +'<div class="actions"><button class="btn btn-gold sm" onclick="saveCustom()">Save exercise</button><button class="btn btn-dark sm" onclick="TR.cx=null;renderPlan()">Cancel</button></div></div>';
+}
+function cxEq(e){ const a=TR.cx.eq, i=a.indexOf(e); i<0?a.push(e):a.splice(i,1); renderPlan(); }
+function saveCustom(){
+  const c=TR.cx, name=String(c.name||'').trim(); if(!name){ toast('Give it a name'); return; }
+  if(findEx(name)&&!findEx(name).custom){ toast('“'+name+'” is already in the library'); return; }
+  DB.lib['c-'+slug(name)]={name,m:c.m,eq:c.eq.slice(),u:Date.now()}; TR.cx=null; TR.q=name; dataTouch(); toast('Added '+name);
+  const dl=$('exs'); if(dl) dl.remove();   // rebuilt with the new name next time
+}
+function delCustom(id){ askConfirm('Remove “'+DB.lib[id].name+'” from your exercises? Logged sets keep their history.',()=>{ DB.lib[id]={deleted:true,u:Date.now()}; dataTouch(); }); }
+
+/* ── PLACES ── */
+function viewLocs(){
+  const locs=liveLocs();
+  return locs.map(l=>{const n=allEx().filter(x=>canDo(x,l)).length;
+    return '<div class="card"><div class="spread" style="display:flex;gap:8px;align-items:center"><input value="'+esc(l.name)+'" onchange="renameLoc(\''+l.id+'\',this.value)" style="font-weight:700">'
+      +'<button class="btn btn-dark sm" onclick="delLoc(\''+l.id+'\')">Delete</button></div>'
+      +'<div class="hint">'+n+' exercises possible here'+(l.cls?' · class-based: workouts here log as HIIT':'')+'</div>'
+      +'<div class="eqgrid">'+Object.keys(EQUIP).map(e=>'<button class="chip'+((l.eq||[]).includes(e)?' on':'')+'" onclick="togEq(\''+l.id+'\',\''+e+'\')">'+EQUIP[e]+'</button>').join('')+'</div>'
+      +'<div class="eqgrid"><button class="chip'+(l.cls?' on':'')+'" onclick="togCls(\''+l.id+'\')">Class-based gym</button></div></div>';}).join('')
+    +'<button class="btn btn-gold" onclick="addLoc()">+ Add a place</button>'
+    +'<div class="hint">Bodyweight moves are available everywhere. Toggle what each place actually has — the exercise picker and the Exercises tab filter to it.</div>';
+}
+function locEdit(id,fn){ const l=clone(DB.locs[id]); fn(l); l.u=Date.now(); DB.locs[id]=l; dataTouch(); renderLocSelect(); }
+function renameLoc(id,v){ v=String(v||'').trim(); if(v) locEdit(id,l=>{l.name=v;}); }
+function togEq(id,e){ locEdit(id,l=>{ l.eq=l.eq||[]; const i=l.eq.indexOf(e); i<0?l.eq.push(e):l.eq.splice(i,1); }); }
+function togCls(id){ locEdit(id,l=>{ l.cls=!l.cls; }); }
+function addLoc(){ DB.locs[newId()]={name:'New place',ord:50,eq:[],u:Date.now()}; dataTouch(); renderLocSelect(); toast('Added — rename it and pick its equipment'); }
+function delLoc(id){ askConfirm('Delete “'+locName(id)+'”? Workouts and logs that mention it keep their data.',()=>{ DB.locs[id]={deleted:true,u:Date.now()}; dataTouch(); renderLocSelect(); }); }
+
+/* ── WORKOUT EDITOR (saved workouts and plan days) ── */
+let ED=null;
+function edRowsFrom(ex){
+  return (ex||[]).map(x=>{const s=(x.sets||[])[0]||{}, m=String(x.rx||'').match(/×\s*([^@]+?)\s*(?:@|$)/);
+    return {name:x.name, n:String((x.sets||[]).length||''), r:m?m[1]:(s.r!=null?String(s.r):''), w:s.w!=null&&!/^bw$/i.test(String(s.w))?String(s.w):'', rest:String(x.rest||90), note:x.note||'', opt:!!x.opt};});
+}
+function openEditor(mode,key,src){
+  src=src||{};
+  ED={mode,key,also:false,d:{title:src.title||'',loc:src.loc!=null?src.loc:defaultLoc(),kind:src.kind||'lift',sub:src.sub||'',rows:edRowsFrom(src.ex)}};
+  $('edTitle').textContent=mode==='plan'?dow(key)+' '+fmtD(key):(key?'Edit workout':'New workout');
+  $('edWrap').classList.add('on'); $('edWrap').scrollTop=0; document.body.style.overflow='hidden'; edRender();
+}
+function closeEditor(){ ED=null; $('edWrap').classList.remove('on'); document.body.style.overflow=''; }
+function edRender(){
+  const d=ED.d, loc=DB.locs[d.loc];
+  let h='<label class="f">Name</label><input data-k="title" value="'+esc(d.title)+'" placeholder="e.g. Upper A, Office KB, Long run">'
+    +'<div class="grid2"><div><label class="f">Where</label><select data-k="loc"><option value="">Anywhere</option>'
+    +liveLocs().map(l=>'<option value="'+esc(l.id)+'"'+(l.id===d.loc?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></div>'
+    +'<div><label class="f">Type</label><select data-k="kind">'+Object.keys(KIND).map(k=>'<option value="'+k+'"'+(k===d.kind?' selected':'')+'>'+KIND[k]+'</option>').join('')+'</select></div></div>'
+    +'<label class="f">Description</label><input data-k="sub" value="'+esc(d.sub)+'" placeholder="Optional — e.g. heavy, 45 min">'
+    +'<div class="section-title">Exercises · '+d.rows.length+'</div>';
+  h+=d.rows.map((r,i)=>{const x=findEx(r.name), miss=x&&loc&&!canDo(x,loc)?x.eq.filter(e=>!(loc.eq||[]).includes(e)).map(e=>EQUIP[e]||e):[];
+    return '<div class="edrow"><div class="top"><button class="nmb" onclick="edSwap('+i+')">'+esc(r.name||'Pick exercise')+' <span style="color:var(--muted)">›</span></button>'
+      +'<button class="ic" title="Move up" onclick="edMove('+i+',-1)">↑</button><button class="ic" title="Move down" onclick="edMove('+i+',1)">↓</button><button class="ic" title="Remove" onclick="edDel('+i+')">✕</button></div>'
+      +'<div class="grid4"><div><span class="mini">Sets</span><input data-r="'+i+'" data-k="n" inputmode="numeric" value="'+esc(r.n)+'"></div>'
+      +'<div><span class="mini">Reps</span><input data-r="'+i+'" data-k="r" value="'+esc(r.r)+'" placeholder="max"></div>'
+      +'<div><span class="mini">Weight</span><input data-r="'+i+'" data-k="w" inputmode="decimal" value="'+esc(r.w)+'" placeholder="BW"></div>'
+      +'<div><span class="mini">Rest s</span><input data-r="'+i+'" data-k="rest" inputmode="numeric" value="'+esc(r.rest)+'"></div></div>'
+      +'<input data-r="'+i+'" data-k="note" value="'+esc(r.note)+'" placeholder="Coaching note (optional)" style="margin-top:6px;font-size:13px;padding:8px 10px">'
+      +(miss.length?'<div class="warn">Needs '+esc(miss.join(', '))+' — not set up at '+esc(loc.name)+'</div>':'')+'</div>';}).join('');
+  h+='<button class="btn btn-dark" onclick="edAdd()">+ Add exercise</button>'
+    +(ED.mode==='plan'?'<label class="checkline"><input type="checkbox" data-k="also"'+(ED.also?' checked':'')+'> Also save to Workouts</label>':'')
+    +'<div class="hint" style="margin-top:12px">Reps can be text — “8 / side”, “8–10”, “40 steps”. Leave weight blank for bodyweight. For cardio, use reps for minutes or distance.</div>';
+  $('edBody').innerHTML=h;
+}
+function edField(ev){
+  if(!ED) return; const t=ev.target, k=t.dataset.k; if(!k) return;
+  if(t.dataset.r!=null) ED.d.rows[+t.dataset.r][k]=t.value;
+  else if(k==='also') ED.also=t.checked;
+  else { ED.d[k]=t.value; if(k==='loc'&&ev.type==='change') edRender(); }
+}
+$('edWrap').addEventListener('input',edField); $('edWrap').addEventListener('change',edField);
+function edAdd(){ openPicker({loc:ED.d.loc,onPick:name=>{ ED.d.rows.push({name,n:'3',r:'10',w:'',rest:String(restFor(name)),note:''}); edRender(); }}); }
+function edSwap(i){ openPicker({loc:ED.d.loc,onPick:name=>{ ED.d.rows[i].name=name; edRender(); }}); }
+function edMove(i,dir){ const a=ED.d.rows, j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; edRender(); }
+function edDel(i){ ED.d.rows.splice(i,1); edRender(); }
+function rowToEx(r){
+  const n=parseInt(r.n)||0, reps=String(r.r||'').trim(), w=String(r.w||'').trim();
+  const o={name:r.name, rx:n?n+'×'+(reps||'max')+(w?' @ '+w:''):reps, rest:parseInt(r.rest)||90, note:String(r.note||'').trim(),
+    sets:Array.from({length:n},()=>({w:w,r:reps&&!isNaN(parseInt(reps))?String(parseInt(reps)):'',done:false}))};
+  if(r.opt) o.opt=true; return o;
+}
+function edSave(){
+  const d=ED.d, title=d.title.trim();
+  if(!title&&d.kind!=='rest'){ toast('Give it a name'); const i=document.querySelector('#edBody [data-k=title]'); i&&i.focus(); return; }
+  const out={kind:d.kind,title:title||'Rest',sub:d.sub.trim(),loc:d.loc,ex:d.rows.filter(r=>r.name).map(rowToEx)};
+  if(ED.mode==='tpl'){ DB.tpl[ED.key||newId()]=Object.assign(out,{u:Date.now()}); closeEditor(); dataTouch(); }
+  else { const key=ED.key; editablePlan().days[key]=out; if(ED.also) DB.tpl[newId()]=Object.assign(clone(out),{u:Date.now()});
+    TR.open[key]=true; closeEditor(); planTouch(); }
+  toast('Saved');
+}
+
+/* ── EXERCISE PICKER + simple chooser ── */
+let PK=null;
+function openPicker(o){
+  PK={mode:'ex',loc:o.loc||'all',onPick:o.onPick,q:'',m:'all'};
+  $('pkTitle').textContent='Add exercise'; $('pkWrap').classList.add('on'); $('pkWrap').scrollTop=0; pkRender();
+}
+function openList(title,items){ PK={mode:'list',items}; $('pkTitle').textContent=title; $('pkWrap').classList.add('on'); $('pkWrap').scrollTop=0; pkRender(); }
+function closePicker(){ PK=null; $('pkWrap').classList.remove('on'); }
+function pkRender(){
+  if(PK.mode==='list'){
+    $('pkBody').innerHTML='<div class="card">'+PK.items.map((it,i)=>'<div class="lib-row" onclick="pkChoose('+i+')"><div><div class="nm">'+esc(it.label)+'</div>'+(it.sub?'<div class="mt">'+esc(it.sub)+'</div>':'')+'</div><span style="color:var(--muted)">›</span></div>').join('')+'</div>';
+    return;
+  }
+  const locs=liveLocs();
+  $('pkBody').innerHTML='<input id="pkQ" placeholder="Search exercises" oninput="PK.q=this.value;pkList()">'
+    +'<div class="chips"><button class="chip'+(PK.loc==='all'?' on':'')+'" onclick="PK.loc=\'all\';pkRender()">Any place</button>'
+    +locs.map(l=>'<button class="chip'+(PK.loc===l.id?' on':'')+'" onclick="PK.loc=\''+l.id+'\';pkRender()">'+esc(l.name)+'</button>').join('')+'</div>'
+    +'<div class="chips" style="margin-top:0"><button class="chip'+(PK.m==='all'?' on':'')+'" onclick="PK.m=\'all\';pkRender()">All muscles</button>'
+    +Object.keys(MUSCLE).map(m=>'<button class="chip'+(PK.m===m?' on':'')+'" onclick="PK.m=\''+m+'\';pkRender()">'+MUSCLE[m]+'</button>').join('')+'</div>'
+    +'<div class="card" id="pkList"></div>';
+  $('pkQ').value=PK.q; pkList();
+}
+function pkList(){
+  const el=$('pkList'); if(!el) return;
+  const xs=libFilter(PK.q,PK.loc,PK.m), q=PK.q.trim();
+  const exact=q&&xs.some(x=>x.name.toLowerCase()===q.toLowerCase());
+  el.innerHTML=(q&&!exact?'<div class="lib-row" data-n="'+esc(q)+'" onclick="pkNew(this.dataset.n)"><div><div class="nm" style="color:var(--gold)">+ Use “'+esc(q)+'”</div><div class="mt">Adds it to your exercises</div></div></div>':'')
+    +xs.map(x=>{const pr=DB.prs[canon(x.name)];
+      return '<div class="lib-row" data-n="'+esc(x.name)+'" onclick="pkPick(this.dataset.n)"><div><div class="nm">'+esc(x.name)+'</div><div class="mt">'+(MUSCLE[x.m]||'')+' · '+esc(eqLabel(x))+'</div></div>'
+        +(pr?'<span class="lr">'+pr.w+'<small style="font-family:Inter,sans-serif;font-size:11px;color:var(--muted)"> × '+pr.r+'</small></span>':'')+'</div>';}).join('')
+    +(!xs.length&&!q?'<div class="empty">Nothing here for this place and muscle.</div>':'');
+}
+function pkPick(name){ const cb=PK&&PK.onPick; closePicker(); cb&&cb(name); }
+function pkNew(name){ name=String(name).trim(); if(!findEx(name)){ DB.lib['c-'+slug(name)]={name,m:PK.m!=='all'?PK.m:'FB',eq:[],u:Date.now()}; writeLocal(); queuePush(); } pkPick(name); }
+function pkChoose(i){ const it=PK.items[i]; closePicker(); it&&it.fn(); }
+
+/* Log tab: add an exercise from the library, filtered to where you are */
+function logAddEx(){
+  openPicker({loc:$('fLoc').value||'all',onPick:name=>{
+    addEx({name,rest:restFor(name),sets:[{w:'',r:'',done:false},{w:'',r:'',done:false},{w:'',r:'',done:false}]}); autoSave(); }});
+}
+
+function loadPlanDay(d){ const p=DB.plan&&DB.plan.days[d]; if(p) loadWorkout(p); }
+function loadTpl(id){ const p=DB.tpl&&DB.tpl[id]; if(p) loadWorkout(p); }
+function loadWorkout(p){
   flushSave();
   // the plan loads into TODAY — whichever day you actually lift it — never onto the
   // plan's own calendar date, which would overwrite that day's real log
   const t=todayStr(), cur=live(t);
   const run=()=>{
     loadForm(t);
-    F.lift=true; syncTog();
-    $('fSession').value=p.session?p.session:['Pull','Legs','Push','Pull + Arms','Legs #2','Full Body','Chest'].indexOf(p.title)>=0?p.title
-      :/full body/i.test(p.title)?'Full Body':/legs/i.test(p.title)?'Legs #2':'Other';
+    const hasSets=p.ex.some(x=>(x.sets||[]).length);
+    F.lift=hasSets||p.kind!=='hiit';
+    if(p.kind==='hiit'){ F.hiit=true;   // a class: record what the workout was
+      if(!$('fNotes').value.trim()) $('fNotes').value=p.title+(p.ex.length?': '+p.ex.map(x=>x.name+(x.rx?' '+x.rx:'')+(x.note?' ('+x.note+')':'')).join('; '):''); }
+    syncTog();
+    $('fSession').value=p.session||p.title||'';
+    renderLocSelect(); if(p.loc) $('fLoc').value=p.loc;
     $('exList').innerHTML='';
     // prefill target weight AND target reps, flagged `pre` so untouched targets are
     // never mistaken for sets you actually performed
@@ -1214,7 +1860,8 @@ function loadForm(d){
   $('fRideMin').value=e.ride&&e.ride.min!=null?e.ride.min:20; $('fRideOut').value=e.ride&&e.ride.out!=null?e.ride.out:''; $('fRideW').value=e.ride&&e.ride.watts!=null?e.ride.watts:'';
   $('fWalkMi').value=e.walk&&e.walk.mi!=null?e.walk.mi:''; $('fWalkMin').value=e.walk&&e.walk.min!=null?e.walk.min:'';
   $('fHiitR').value=e.hiit&&e.hiit.rounds!=null?e.hiit.rounds:4; $('fHiitMin').value=e.hiit&&e.hiit.min!=null?e.hiit.min:'';
-  $('fSession').value=e.lift&&e.lift.session?e.lift.session:'Pull';
+  $('fSession').value=e.lift&&e.lift.session?e.lift.session:'';
+  renderLocSelect(); $('fLoc').value=(e.lift&&e.lift.loc)||'';
   $('fNotes').value=e.notes||'';
   $('exList').innerHTML='';
   // carry target, coaching note and the untouched-target flag back in — dropping
@@ -1249,7 +1896,7 @@ function addEx(x){
     +'<button class="add-link" onclick="addSet(this)">+ set</button>';
   $('exList').appendChild(div);
   refreshLast(div);
-  if(!$('exs')){const dl=document.createElement('datalist');dl.id='exs';dl.innerHTML=EX_SUGGEST.map(n=>'<option value="'+esc(n)+'"></option>').join('');document.body.appendChild(dl);}
+  if(!$('exs')){const dl=document.createElement('datalist');dl.id='exs';dl.innerHTML=allEx().map(x=>'<option value="'+esc(x.name)+'"></option>').join('');document.body.appendChild(dl);}
 }
 const setRow=(i,s)=>'<div class="set'+(s.done?' done':'')+(s.pre&&!s.done?' pre':'')+'"><span class="sn">'+(i+1)+'</span>'
   +'<button class="chk" title="Mark set done" onclick="setDone(this)">✓</button>'
@@ -1468,7 +2115,7 @@ function readForm(){
         return o;
       }).filter(s=>s.pre||s.w>0||s.r!==''||s.done)     // keep targets (incl. bodyweight ones with no reps yet) and reps-only sets
     };}).filter(x=>x.name);
-    e.lift={session:$('fSession').value,ex};
+    e.lift={session:$('fSession').value.trim(),loc:$('fLoc').value,ex};
   }
   e.notes=$('fNotes').value.trim();
   const prev=live(formDate); if(prev&&prev.hk) e.hk=prev.hk;
@@ -1536,7 +2183,7 @@ function renderHist(){
   const days=sorted().reverse();
   if(!days.length){ $('histList').innerHTML='<div class="empty">Nothing logged yet.</div>'; return; }
   $('histList').innerHTML=days.map(d=>{const e=live(d);
-    const tags=[e.ride?'Ride':'',e.hiit?'HIIT':'',e.walk?('Walk '+(e.walk.mi!=null?e.walk.mi+'mi':'')):'',didLift(e.lift)?e.lift.session:''].filter(Boolean).join(' · ')||'Rest';
+    const tags=[e.ride?'Ride':'',e.hiit?'HIIT':'',e.walk?('Walk '+(e.walk.mi!=null?e.walk.mi+'mi':'')):'',didLift(e.lift)?((e.lift.session||'Lift')+(e.lift.loc&&locName(e.lift.loc)?' @ '+locName(e.lift.loc):'')):''].filter(Boolean).join(' · ')||'Rest';
     return '<div class="hist" onclick="openDay(\''+d+'\')"><div><div class="hd">'+dow(d)+' '+fmtD(d)+'</div><div class="hs">'+esc(tags)+'</div></div>'
     +'<div class="hv"><b>'+(e.weight!=null?e.weight:'–')+'</b><br>'+(e.cal!=null?e.cal:'–')+' cal · '+(e.pro!=null?e.pro:'–')+'g P · '+(e.fat!=null?e.fat:'–')+'g F</div></div>';}).join('');
 }
@@ -1559,7 +2206,7 @@ function buildExport(){
     }
   }
   L.push('LIFTS');
-  days.filter(d=>didLift(live(d).lift)).forEach(d=>{const l=live(d).lift;L.push(dow(d)+' '+fmtD(d)+' — '+l.session);
+  days.filter(d=>didLift(live(d).lift)).forEach(d=>{const l=live(d).lift;L.push(dow(d)+' '+fmtD(d)+' — '+(l.session||'Lift')+(l.loc&&locName(l.loc)?' @ '+locName(l.loc):''));
     l.ex.forEach(x=>{const done=x.sets.filter(s=>!s.pre&&s.r!==''&&s.r);if(!done.length)return;
       const pr=DB.prs[canon(x.name)]&&DB.prs[canon(x.name)].d===d?' 🏆':'';
       L.push('  '+x.name+': '+done.map(s=>(s.w>0?s.w:'BW')+'×'+s.r).join(', ')+pr);});});
@@ -1604,7 +2251,7 @@ function adopt(j){
   if(!j||!j.days) throw 0;
   stampAll(j);
   DB=mergeDB(DB,j);
-  DB.plan=DB.plan||SEED_PLAN; DB.prs=computePRs();
+  DB.plan=DB.plan||SEED_PLAN; seedDefaults(); DB.prs=computePRs();
   writeLocal(); render(); renderPlan(); queuePush();
 }
 function togglePaste(show){
@@ -1630,7 +2277,7 @@ function resetAll(){
     clearTimeout(saveT); saveT=null;
     const u=Date.now(), tomb={};
     Object.keys(DB.days).forEach(d=>tomb[d]={date:d,deleted:true,u});   // tombstones so the wipe syncs
-    DB={days:tomb,prs:{},plan:SEED_PLAN,planU:u};
+    DB={days:tomb,prs:{},plan:SEED_PLAN,planU:u,locs:DB.locs,lib:DB.lib,tpl:DB.tpl};   // places, exercises and workouts survive
     DB.prs=computePRs();
     writeLocal(); render(); renderPlan(); queuePush(); toast('Cleared');
   });
