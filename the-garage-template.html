@@ -120,7 +120,27 @@
   .ex-head .exname-wrap{flex:1}
   .ex-head .restin{width:66px;text-align:center;padding:8px 4px;font-size:13px}
   .ex-head .lbl{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+  .ex-rx{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--gold);margin:7px 2px 0;font-variant-numeric:tabular-nums}
   .ex-note{font-size:11px;color:var(--muted);line-height:1.4;margin:6px 2px 8px}
+  /* what you did the last time you ran this exercise */
+  .ex-last{display:flex;gap:6px;align-items:baseline;width:100%;text-align:left;background:none;border:none;border-left:2px solid var(--gold);padding:3px 0 3px 8px;margin:8px 2px 0;font-size:12px;color:var(--white);font-variant-numeric:tabular-nums}
+  .ex-last:empty{display:none}
+  .ex-last .k{font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);flex:none}
+  .ex-last .when{color:var(--muted);flex:none}
+  .ex-last .sets{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ex-last .go{color:var(--muted);flex:none}
+  .ex-last.none{border-left-color:var(--faint);color:var(--muted)}
+  #dateWarn{display:none;background:var(--gold-dim);border:1px solid var(--gold);color:var(--gold);border-radius:10px;padding:8px 11px;font-size:12px;margin-top:8px}
+  #dateWarn u{cursor:pointer;font-weight:700}
+  /* exercise history sheet */
+  .xh-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .xh-row:last-child{border-bottom:none}
+  .xh-row .d{color:var(--muted);flex:none;width:58px}
+  .xh-row .s{flex:1;text-align:right}
+  .pr{cursor:pointer}
+  /* a prefilled target, not something you've lifted yet */
+  .set.pre input{opacity:.4;font-style:italic}
+  .set.pre .chk{border-style:dashed}
   .ex-sets{display:flex;flex-direction:column;gap:5px;margin-top:8px}
   .set{display:flex;gap:6px;align-items:center}
   .set .sn{width:20px;font-size:11px;color:var(--muted);text-align:center}
@@ -223,7 +243,7 @@
 <div class="view wrap" id="v-plan">
   <div class="section-title" id="planTitle">Week plan</div>
   <div id="planList"></div>
-  <div class="hint">Tap a day for the session. "Load into log" pre-fills every exercise with target weights and rest times — check sets off as you lift and the rest timer runs itself. Reworked together every Sunday night.</div>
+  <div class="hint">Tap a day for the session. "Load into today" pre-fills today's log with every exercise, target weights and rest times — whichever day of the week you actually lift it. Check sets off as you go and the rest timer runs itself. Reworked together every Sunday night.</div>
 </div>
 
 <!-- LOG -->
@@ -232,15 +252,17 @@
     <div><label class="f" for="fDate">Date</label><input type="date" id="fDate"></div>
     <div><label class="f" for="fWeight">Weight (lb)</label><input type="number" step="0.1" inputmode="decimal" id="fWeight" placeholder="185.0"></div>
   </div>
+  <div id="dateWarn"></div>
+  <div class="hint">Weigh first thing: wake, bathroom, scale — before food or water.</div>
 
-  <div class="section-title">Nutrition (MFP totals)</div>
+  <div class="section-title">Nutrition (daily totals)</div>
   <div class="grid4">
     <div><label class="f" for="fCal">Cals</label><input type="number" inputmode="numeric" id="fCal" placeholder="2000"></div>
     <div><label class="f" for="fPro">Protein</label><input type="number" inputmode="numeric" id="fPro" placeholder="180"></div>
     <div><label class="f" for="fCarb">Carbs</label><input type="number" inputmode="numeric" id="fCarb" placeholder="180"></div>
     <div><label class="f" for="fFat">Fat</label><input type="number" inputmode="numeric" id="fFat" placeholder="65"></div>
   </div>
-  <div class="hint" id="tgtHint"></div>
+  <div class="hint" id="macroHint"></div>
 
   <div class="section-title">Cardio + HIIT</div>
   <div class="toggle-row">
@@ -269,7 +291,7 @@
   <div id="liftFields" style="display:none;margin-top:8px">
     <label class="f" for="fSession">Session</label>
     <select id="fSession" onchange="autoSave()">
-      <option>Pull</option><option>Legs</option><option>Push</option><option>Pull + Arms</option><option>Legs #2</option><option>Chest</option><option>Bodyweight</option><option>Other</option>
+      <option>Pull</option><option>Legs</option><option>Push</option><option>Pull + Arms</option><option>Legs #2</option><option>Full Body</option><option>Chest</option><option>Bodyweight</option><option>Other</option>
     </select>
     <label class="f">Exercises · tap ✓ when a set's done and the rest timer starts</label>
     <div id="exList"></div>
@@ -277,7 +299,7 @@
   </div>
 
   <label class="f" for="fNotes">Notes</label>
-  <textarea id="fNotes" rows="2" placeholder="Row felt strong — 160 next week."></textarea>
+  <textarea id="fNotes" rows="2" placeholder="Row felt strong — go up next week."></textarea>
 
   <div class="savestate" id="saveState"></div>
   <div style="height:6px"></div>
@@ -341,6 +363,21 @@
   </div>
 </div>
 
+<!-- EXERCISE HISTORY SHEET -->
+<div id="xhWrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:65;align-items:flex-end;justify-content:center" onclick="if(event.target===this)closeExHist()">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-width:560px;width:100%;max-height:82vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div><div id="xhName" style="font-weight:800;font-size:17px"></div><div id="xhPR" class="hint" style="margin-top:3px"></div></div>
+      <button class="add-link" style="padding:2px 0;font-size:14px" onclick="closeExHist()">Done</button>
+    </div>
+    <div class="card" style="margin-top:12px;background:var(--card)">
+      <canvas id="xhChart" height="150"></canvas>
+      <div class="chart-note"><span id="xhChartNote">Heaviest set each session</span><span id="xhRange"></span></div>
+    </div>
+    <div id="xhList"></div>
+  </div>
+</div>
+
 <!-- REST TIMER BAR -->
 <div class="timerbar" id="timerBar">
   <div class="tt" id="ttTime">1:30</div>
@@ -354,7 +391,7 @@
 <nav>
   <button class="on" onclick="go('dash',this)"><span class="i">HM</span>Home</button>
   <button onclick="go('plan',this)"><span class="i">▦</span>Plan</button>
-  <button onclick="go('log',this)"><span class="i">+</span>Log</button>
+  <button onclick="go('log',this,true)"><span class="i">+</span>Log</button>
   <button onclick="go('hist',this)"><span class="i">≡</span>History</button>
   <button onclick="go('exp',this)"><span class="i">↑</span>Export</button>
 </nav>
@@ -368,57 +405,78 @@
 /* ─────────── EDIT THIS BLOCK ─────────── */
 const GYM   = 'THE GARAGE';   // big title
 const OWNER = 'YOUR GYM';     // small line above it
-const T = { cal:2200, proMin:180, proMax:210, fatMax:80, carb:200 };  // daily targets
-const START_WEIGHT = 200;     // weight you started the cut at
+const T = { cal:2000, proMin:170, proMax:200, fatMax:70, carb:200 };  // daily targets
+const START_WEIGHT = 200;     // the weight you started at
 /* ─────────────────────────────────────── */
+/* Travel days eat higher on purpose — under-eating on the road is the worse
+   outcome. A list, so past trips stay (old days keep being judged against the cap
+   that applied then) and booking a new one is a single line. */
+const TRAVEL_CAL = [
+  // { from:'2026-10-05', to:'2026-10-09', max:2500 },   // one line per trip
+];
 const LSKEY = 'garage:log:v2';
-const LSKEY_OLD = '';
 const CLOUD = 'data/log.json';
 /* FIXED stamp for starter data. Must never be Date.now(): a fresh stamp each
    load makes seeded data look newly edited, which triggers a publish, which
    reloads the page, which seeds again — an endless republish loop. */
 const SEED_U = 1756000000000;
 
-const SEED_PRS = {};   // your PRs fill in as you log
-const EX_SUGGEST = ['Barbell Back Squat','Barbell Bench Press','Barbell Incline Bench','Barbell Bent-Over Row','Pendlay Row','Barbell RDL','Barbell OHP','Barbell Curl','Close Grip Bench','EZ Bar Skull Crusher','Barbell Shrug','Hack Squat','DB Incline Press','DB Decline Press','Dumbbell Flyes','Wide-Grip Pull-Ups','Meadows Row','Incline DB Curl','Hammer Curl','EZ Bar 21s','Arnold Press','Lateral Raise','Overhead DB Extension','Bulgarian Split Squat','Calf Raise','DB Row','Rear Delt Flye','EZ Bar Curl','Concentration Curl','Zottman Curl','Diamond Push-Ups','Push-Up Burnout','FFE Split Squat','Single-Leg RDL'];
+/* Lifts you already know your numbers for, from before this app had any history.
+   Fill these in or leave it empty — the PR board is rebuilt from the log plus these. */
+const SEED_PRS = {
+  // 'Barbell Bench Press':{w:185,r:6,d:'2026-01-01'},
+};
+/* PRs whose session no longer exists in the log — a day you deleted, or a lift
+   whose record predates the app. They stay on the board as a floor. */
+const LOST_SESSION_PRS = {};
+const EX_SUGGEST = Object.keys(SEED_PRS).concat(['Barbell Back Squat','Barbell Bench Press','Barbell Incline Bench','Barbell Bent-Over Row','Barbell RDL','Barbell OHP','Barbell Curl','Close Grip Bench','Barbell Shrug','DB Incline Press','Dumbbell Flyes','Band Row','Band Pull-Apart','DB Reverse Lunge','DB Skull Crusher','Wide-Grip Pull-Ups','Meadows Row','Incline DB Curl','Hammer Curl','EZ Bar 21s','Arnold Press','Lateral Raise','Overhead DB Extension','Bulgarian Split Squat','Calf Raise','DB Row','Rear Delt Flye','EZ Bar Curl','Concentration Curl','Zottman Curl','Diamond Push-Ups','Push-Up Burnout','FFE Split Squat','Single-Leg RDL']);
 
-const sets = (n,w)=>Array.from({length:n},()=>({w:String(w),r:'',done:false}));
+const sets = (n,w,r)=>Array.from({length:n},()=>({w:String(w),r:r==null?'':String(r),done:false}));
+/* ── THIS WEEK'S PLAN ──
+   SEED_PLAN_U is FIXED and newer than the plan already synced, so every device
+   adopts this week on its next load (newest planU wins in mergeDB). Never use
+   Date.now() here — see SEED_U. Bump it by hand each time the week is replaced. */
 const SEED_PLAN = {
-  weekOf:'2026-01-05',
+  /* EXAMPLE WEEK — replace it with your own. `weekOf` is that week's Monday; use real
+     dates for the week ahead. Swapping this block is how a new week reaches every device. */
+  weekOf:'2026-09-28',
   days:{
-    '2026-01-05':{kind:'lift',title:'Push',sub:'Chest, shoulders, triceps',ex:[
-      {name:'Barbell Bench Press',rx:'4×6',rest:150,note:'Work up to a hard top set.',sets:sets(4,135)},
-      {name:'Barbell OHP',rx:'3×8',rest:120,note:'Strict, no leg drive.',sets:sets(3,95)},
-      {name:'Barbell Incline Bench',rx:'3×8',rest:90,note:'',sets:sets(3,115)},
-      {name:'Close Grip Bench',rx:'3×10',rest:90,note:'',sets:sets(3,95)},
-      {name:'Lateral Raise',rx:'3×15',rest:60,note:'',sets:sets(3,15)},
+    '2026-09-28':{kind:'lift',title:'Push',sub:'Chest, shoulders, triceps · 5 exercises · 16 sets',ex:[
+      {name:'Barbell Bench Press',rx:'4×6 @ 135',rest:150,note:'Heaviest lift first, while you are fresh.',sets:sets(4,135,6)},
+      {name:'Barbell OHP',rx:'3×8 @ 95',rest:120,note:'Strict, no leg drive.',sets:sets(3,95,8)},
+      {name:'Barbell Incline Bench',rx:'3×8 @ 115',rest:90,note:'',sets:sets(3,115,8)},
+      {name:'Close Grip Bench',rx:'3×10 @ 95',rest:90,note:'Same bar, same bench — no resetup.',sets:sets(3,95,10)},
+      {name:'Lateral Raise',rx:'3×15 @ 15',rest:60,note:'Optional finisher.',opt:true,sets:sets(3,15,15)},
     ]},
-    '2026-01-06':{kind:'lift',title:'Pull',sub:'Back and biceps',ex:[
-      {name:'Barbell Bent-Over Row',rx:'4×6',rest:150,note:'Flat back, bar to the belly.',sets:sets(4,135)},
-      {name:'Wide-Grip Pull-Ups',rx:'4×max',rest:90,note:'',sets:sets(4,'BW')},
-      {name:'DB Row',rx:'3×10/side',rest:75,note:'',sets:sets(3,50)},
-      {name:'Barbell Curl',rx:'3×10',rest:60,note:'',sets:sets(3,65)},
-      {name:'Hammer Curl',rx:'3×12',rest:60,note:'',sets:sets(3,25)},
+    '2026-09-29':{kind:'lift',title:'Pull',sub:'Back and biceps · 5 exercises · 17 sets',ex:[
+      {name:'Barbell Bent-Over Row',rx:'4×6 @ 135',rest:150,note:'Flat back, bar to the belly.',sets:sets(4,135,6)},
+      {name:'Wide-Grip Pull-Ups',rx:'4×max',rest:90,note:'LOG THE REPS — it is the only way this one progresses.',sets:sets(4,'BW')},
+      {name:'DB Row',rx:'3×10 / side @ 50',rest:75,note:'',sets:sets(3,50,10)},
+      {name:'Barbell Curl',rx:'3×10 @ 65',rest:60,note:'',sets:sets(3,65,10)},
+      {name:'Hammer Curl',rx:'3×12 @ 25',rest:60,note:'',sets:sets(3,25,12)},
     ]},
-    '2026-01-07':{kind:'rest',title:'Rest',sub:'Walk or ride if you feel like it',ex:[]},
-    '2026-01-08':{kind:'lift',title:'Legs',sub:'Quads, hams, calves',ex:[
-      {name:'Barbell Back Squat',rx:'4×6',rest:180,note:'Warm up properly.',sets:sets(4,185)},
-      {name:'Barbell RDL',rx:'4×8',rest:120,note:'Hinge, don\u2019t squat it.',sets:sets(4,135)},
-      {name:'Bulgarian Split Squat',rx:'3×10/leg',rest:75,note:'',sets:sets(3,35)},
-      {name:'Calf Raise',rx:'3×15',rest:60,note:'',sets:sets(3,135)},
+    '2026-09-30':{kind:'rest',title:'Rest',sub:'Walk or ride if you feel like it',ex:[]},
+    '2026-10-01':{kind:'lift',title:'Legs',sub:'Quads, hams, calves · 4 exercises · 14 sets',ex:[
+      {name:'Barbell Back Squat',rx:'4×6 @ 185',rest:180,note:'Warm up properly.',sets:sets(4,185,6)},
+      {name:'Barbell RDL',rx:'4×8 @ 135',rest:120,note:'Hinge, do not squat it. Same rack height as the squat.',sets:sets(4,135,8)},
+      {name:'Bulgarian Split Squat',rx:'3×10 / leg @ 35',rest:75,note:'Weaker leg first, match reps on the other.',sets:sets(3,35,10)},
+      {name:'Calf Raise',rx:'3×15 @ 135',rest:60,note:'3-second negative.',sets:sets(3,135,15)},
     ]},
-    '2026-01-09':{kind:'hiit',title:'HIIT Circuit',sub:'~20 min',ex:[
-      {name:'HIIT: 4 rounds',rx:'60s rest between',rest:60,note:'Burpees \u00d710 \u2192 Jump Squats \u00d715 \u2192 Push-Ups \u00d715 \u2192 Mountain Climbers \u00d730. Log it with the HIIT toggle.',sets:[]},
+    '2026-10-02':{kind:'hiit',title:'HIIT circuit',sub:'~20 min · log it with the HIIT toggle',ex:[
+      {name:'HIIT — 4 rounds',rx:'4×see note',rest:60,note:'Burpees ×10 → Jump Squats ×15 → Push-Ups ×15 → Mountain Climbers ×30.',sets:[]},
     ]},
-    '2026-01-10':{kind:'lift',title:'Pull + Arms',sub:'Lighter back, arms are the point',ex:[
-      {name:'DB Row',rx:'3×12/side',rest:75,note:'',sets:sets(3,45)},
-      {name:'Rear Delt Flye',rx:'3×15',rest:60,note:'',sets:sets(3,15)},
-      {name:'EZ Bar Curl',rx:'3×12',rest:60,note:'',sets:sets(3,55)},
-      {name:'EZ Bar Skull Crusher',rx:'3×12',rest:60,note:'',sets:sets(3,50)},
+    '2026-10-03':{kind:'lift',title:'Full Body',sub:'Optional · take it only if the week lost a day',ex:[
+      {name:'Barbell Back Squat',rx:'3×8 @ 155',rest:120,note:'Volume, not intensity.',sets:sets(3,155,8)},
+      {name:'Barbell Bench Press',rx:'3×8 @ 115',rest:120,note:'',sets:sets(3,115,8)},
+      {name:'Barbell Bent-Over Row',rx:'3×8 @ 115',rest:90,note:'',sets:sets(3,115,8)},
     ]},
-    '2026-01-11':{kind:'rest',title:'Rest',sub:'Earned it',ex:[]},
+    '2026-10-04':{kind:'rest',title:'Rest',sub:'Earned it',ex:[]},
   }
 };
+/* Derived from the plan's own week, so swapping the plan always bumps this and the
+   newer week wins in mergeDB. Nothing to remember, and never Date.now() — a stamp
+   that moves every load makes seeded data look edited (see SEED_U). */
+const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
 
 /* ── HELPERS ── */
 const $ = id=>document.getElementById(id);
@@ -436,8 +494,70 @@ function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');cle
 /* live (non-deleted) day access */
 const live = d=>{const e=DB.days[d];return (e&&!e.deleted)?e:null};
 const sorted = ()=>Object.keys(DB.days).filter(live).sort();
-function macroHit(e){ if(!e||e.cal==null) return null; return e.cal<=T.cal+100 && (e.pro||0)>=T.proMin-5; }
-const trained = e=>!!(e&&(e.lift||e.hiit));
+const calCap = d=>{
+  for(const w of TRAVEL_CAL) if(d>=w.from && d<=w.to) return w.max;
+  return T.cal+100;
+};
+function macroHit(e){ if(!e||e.cal==null) return null; return e.cal<=calCap(e.date) && (e.pro||0)>=T.proMin; }   /* >=175g, was >=170 */
+/* loading a plan isn't training — the day only counts once a set is actually done */
+const didLift = l=>!!(l&&(l.ex||[]).some(x=>(x.sets||[]).some(s=>!s.pre&&(s.done||(s.r!==''&&s.r)))));
+const trained = e=>!!(e&&(didLift(e.lift)||e.hiit));
+/* a day counts toward the STREAK only if something real is on it. Loading a plan
+   and walking away writes a day of untouched targets — that is not a logged day. */
+const logged = d=>{const e=live(d); return !!(e && (e.weight!=null||e.cal!=null||e.pro!=null||e.carb!=null||e.fat!=null
+  ||e.ride||e.walk||e.hiit||(e.notes&&e.notes.trim())||didLift(e.lift)));};
+/* a set you actually performed — not an untouched target, and it has reps */
+const performed = s=>!!s && !s.pre && s.r!=='' && s.r!=null && Number(s.r)>0;
+const better = (a,b)=>!b || a.w>b.w || (a.w===b.w && a.r>b.r);
+
+/* ── PRs ── derived from the log every time, so fixing a typo or deleting a day
+   corrects the board instead of leaving a phantom PR behind ── */
+function computePRs(){
+  const out={};
+  [SEED_PRS,LOST_SESSION_PRS].forEach(src=>{ for(const k in src){ const c=canon(k); if(better(src[k],out[c])) out[c]=Object.assign({},src[k]); } });
+  sorted().forEach(d=>{
+    const l=live(d).lift; if(!l) return;
+    (l.ex||[]).forEach(x=>(x.sets||[]).forEach(s=>{
+      if(!performed(s) || !(Number(s.w)>0)) return;
+      const c={w:Number(s.w),r:Number(s.r),d}, k=canon(x.name);
+      if(better(c,out[k])) out[k]=c;   // strictly better, so a tie keeps the first date
+    }));
+  });
+  return out;
+}
+
+/* ── EXERCISE HISTORY ── */
+/* Renamed lifts. The log, the PR board and the plan drifted apart as movements got
+   relabelled; these fold back together so "last time", the history sheet and the PR
+   board stay continuous. Stored names are never rewritten — this only affects
+   matching, so nothing you already logged changes. */
+const EX_ALIAS = {
+  'reverse lunges':'DB Reverse Lunge',      // logged Aug 25, renamed in the Sep 21 plan
+  'calf raise':'Barbell Calf Raise',        // same movement, plan is more specific now
+  'dumbell rdl':'Dumbbell RDL',             // typo in an early log
+};
+const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
+const normName = n=>canon(n).toLowerCase();
+/* every logged session of one exercise, oldest first */
+function exSessions(name){
+  const key=normName(name), out=[];
+  if(!key) return out;
+  sorted().forEach(d=>{
+    const l=live(d).lift; if(!l) return;
+    (l.ex||[]).forEach(x=>{
+      if(normName(x.name)!==key) return;
+      const sets=(x.sets||[]).filter(performed).map(s=>({w:Number(s.w)||0,r:Number(s.r)}));
+      if(sets.length) out.push({d,sets});
+    });
+  });
+  return out;
+}
+const wLbl = w=>w>0?String(w):'BW';
+/* "215 × 6, 6, 6, 6" when the weight held, "135×10, 185×8, 205×8" when it moved */
+function fmtSets(sets){
+  if(sets.every(s=>s.w===sets[0].w)) return wLbl(sets[0].w)+' × '+sets.map(s=>s.r).join(', ');
+  return sets.map(s=>wLbl(s.w)+'×'+s.r).join(', ');
+}
 
 /* ── STATE ── */
 let DB = { days:{}, prs:{}, plan:null, planU:0 };
@@ -474,8 +594,6 @@ function readLocal(){
   try{
     const raw=localStorage.getItem(LSKEY);
     if(raw) return JSON.parse(raw);
-    const old=localStorage.getItem(LSKEY_OLD);   // carry over the old app's data if it's here
-    if(old){const j=JSON.parse(old);stampAll(j);return j;}
   }catch(e){}
   return null;
 }
@@ -540,10 +658,20 @@ function stable(o){
   const p=Object.keys(o.prs||{}).sort().map(k=>k+':'+JSON.stringify(o.prs[k])).join('|');
   return d+'##'+p+'##'+(o.planU||0);
 }
-/* loop guard: a whole-page publish reloads us, so cap auto-publishes per browser session */
-function pubCount(){ try{ return parseInt(sessionStorage.getItem('garage:pub')||'0')||0; }catch(e){ return 0; } }
-function bumpPub(){ try{ sessionStorage.setItem('garage:pub',String(pubCount()+1)); }catch(e){} }
-function resetPub(){ try{ sessionStorage.setItem('garage:pub','0'); }catch(e){} }
+/* Loop guard. A whole-page publish reloads us, so a bug can publish in a tight
+   loop. Catch the RATE, not the lifetime: publishes further apart than PUB_QUIET
+   are ordinary use and clear the count. A lifetime counter only ever climbs, and
+   eventually jams the app into "tap to sync" during normal logging. */
+const PUB_QUIET = 120000;   // 2 min of quiet proves this isn't a loop
+function pubCount(){
+  try{
+    const j=JSON.parse(sessionStorage.getItem('garage:pub')||'null');
+    if(!j || Math.abs(Date.now()-(j.at||0))>PUB_QUIET) return 0;
+    return j.n||0;
+  }catch(e){ return 0; }
+}
+function bumpPub(){ try{ sessionStorage.setItem('garage:pub',JSON.stringify({n:pubCount()+1,at:Date.now()})); }catch(e){} }
+function resetPub(){ try{ sessionStorage.removeItem('garage:pub'); }catch(e){} }
 
 let pushT=null, pushing=false, pushAgain=false, pendingSync=false;
 function queuePush(){
@@ -558,12 +686,12 @@ function queuePush(){
   pushT=setTimeout(pushCloud,3500);
 }
 function flushPending(){ if(pendingSync&&ART){ pendingSync=false; pushCloud(); } }
-let useFilesForm=true, pubN=0;
+let useFilesForm=true, pubN=0, pubAt=0;
 async function publishState(){
   // pubN rides along inside the published state, so the loop guard survives a
   // reload even when sessionStorage is blocked. stable() ignores it on purpose.
-  pubN++;
-  const json=JSON.stringify(Object.assign({},DB,{pubN}));
+  pubN++; pubAt=Date.now();
+  const json=JSON.stringify(Object.assign({},DB,{pubN,pubAt}));
   if(useFilesForm){
     try{
       await ART.publish({[CLOUD]:{content:json,contentType:'application/json'}});
@@ -634,9 +762,9 @@ async function pushCloud(retry){
 async function syncNow(){
   if(!ART){ toast(cloudTried?'Sync unavailable here — this device only':'Still connecting…'); return; }
   clearTimeout(pushT);
-  resetPub(); pubN=0;               // explicit request always allowed through the loop guard
+  resetPub(); pubN=0; pubAt=0;      // explicit request always allowed through the loop guard
   const cloud=await fetchCloud();
-  if(cloud){ DB=mergeDB(DB,cloud); writeLocal(); render(); renderPlan(); }
+  if(cloud){ DB=mergeDB(DB,cloud); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); }
   pendingSync=false;
   await pushCloud();
   if(syncState==='ok') toast('Synced');
@@ -675,16 +803,14 @@ async function load(){
   // the page's own embedded state and this device's storage are both inputs —
   // merge them BEFORE deciding anything is missing, or we re-seed over real data
   const seed=readSeed();
-  pubN=(seed&&seed.pubN)||0;
+  pubN=(seed&&seed.pubN)||0; pubAt=(seed&&seed.pubAt)||0;
+  // quiet since the last publish? then whatever ran before was not a loop
+  if(!pubAt || Math.abs(Date.now()-pubAt)>PUB_QUIET) pubN=0;
   const localData=readLocal();
   DB=mergeDB(localData||{days:{},prs:{}}, seed||{days:{},prs:{}});
-  DB.days=DB.days||{}; DB.prs=DB.prs||{};
-  for(const k in SEED_PRS){
-    const s=SEED_PRS[k], c=DB.prs[k];
-    if(!c || s.w>c.w || (s.w===c.w && s.r>c.r)) DB.prs[k]=s;
-  }
-  if(!DB.plan){ DB.plan=SEED_PLAN; DB.planU=SEED_U; }
-  if(Object.keys(DB.days).length===0) seedDays();
+  DB.days=DB.days||{};
+  if(!DB.plan || (DB.planU||0)<SEED_PLAN_U){ DB.plan=SEED_PLAN; DB.planU=SEED_PLAN_U; }
+  DB.prs=computePRs();
 
   localOK=writeLocal();
   if(!localOK) setBanner('nostore');
@@ -704,7 +830,7 @@ async function load(){
   if(!ART){ setSync('local'); return; }
 
   const cloud=await fetchCloud();
-  if(cloud){ DB=mergeDB(DB,cloud); writeLocal(); render(); renderPlan(); }
+  if(cloud){ DB=mergeDB(DB,cloud); DB.prs=computePRs(); writeLocal(); render(); renderPlan(); refreshForm(); }
 
   // nothing to send? then we're already in sync — do NOT publish, or a whole-page
   // publish reloads us straight back into this branch and we loop forever.
@@ -716,13 +842,12 @@ async function load(){
   }
   await pushCloud();
 }
-function seedDays(){ /* start empty */ }
 
 /* ── SESSION STASH (survives a sync reload) ── */
 function stashSession(){
   try{
     sessionStorage.setItem('garage:ui',JSON.stringify({
-      view:currentView, date:$('fDate').value,
+      view:currentView, date:formDate, at:Date.now(),
       timer: rt.endsAt>Date.now()?{endsAt:rt.endsAt,label:rt.label,total:rt.total}:null
     }));
   }catch(e){}
@@ -731,6 +856,10 @@ function restoreSession(){
   let s=null;
   try{ s=JSON.parse(sessionStorage.getItem('garage:ui')||'null'); }catch(e){}
   if(!s) return;
+  // the stash exists to survive a sync reload (seconds). An old one — the app sat
+  // closed overnight — must not drop you back onto yesterday's log.
+  const fresh=s.at && Date.now()-s.at<30*60e3 && ymd(new Date(s.at))===todayStr();
+  if(!fresh){ if(s.timer && s.timer.endsAt>Date.now()) resumeRest(s.timer); return; }
   if(s.date) loadForm(s.date);
   if(s.view && s.view!=='dash'){
     const idx={dash:0,plan:1,log:2,hist:3,exp:4}[s.view];
@@ -741,8 +870,24 @@ function restoreSession(){
 window.addEventListener('pagehide',stashSession);
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'){ stashSession(); return; }
+  checkDay();
   if(rt.endsAt>0){ tickRest(); requestWake(); }
 });
+
+/* ── NEW DAY ── a home-screen app can sit open overnight; notice midnight ── */
+let shownDay=todayStr();
+function checkDay(){
+  const t=todayStr(); if(t===shownDay) return;
+  const prev=shownDay; shownDay=t;
+  render(); renderPlan();
+  if(formDate===prev){   // the form was on "today" — move it to the new today
+    loadForm(t);
+    if(currentView==='log') toast('New day, log moved to '+dow(t)+' '+fmtD(t));
+  } else renderDateWarn();
+}
+window.addEventListener('focus',checkDay);
+window.addEventListener('pageshow',checkDay);
+setInterval(checkDay,60000);
 
 async function copyBackup(){
   const j=JSON.stringify(DB);
@@ -754,15 +899,17 @@ async function copyBackup(){
 
 /* ── NAV ── */
 let currentView='dash';
-function go(v,btn){
+function go(v,btn,fromNav){
   // leaving the Log tab is the safe moment to publish — a reload here costs nothing
   const leavingLog = currentView==='log' && v!=='log';
+  if(leavingLog) flushSave();
   currentView=v;
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
   $('v-'+v).classList.add('on');
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  if(v==='log' && !$('fDate').value) loadForm(todayStr());
+  // the Log button always means today; past days open from History or the week strip
+  if(v==='log' && (!formDate || (fromNav && formDate!==todayStr()))) loadForm(todayStr());
   if(v==='exp'){ buildExport(); renderSyncCard(); }
   if(v==='hist') renderHist();
   window.scrollTo(0,0);
@@ -773,13 +920,16 @@ function go(v,btn){
 function render(){
   const days=sorted(), t=todayStr();
   $('brandGym').textContent=GYM; $('brandOwner').textContent=OWNER;
-  $('tgtHint').textContent='Food totals, not MFP\'s adjusted number. Targets: '+T.cal.toLocaleString('en-US')+' cal · '+T.proMin+'–'+T.proMax+'g protein · ≤'+T.fatMax+'g fat.';
   $('hdrSub').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  /* built from T, so the hint can never drift out of sync with the targets */
+  $('macroHint').textContent='Food totals, not the app-adjusted number. Targets: '+T.cal.toLocaleString()+' cal \u00b7 '
+    +T.proMin+'\u2013'+T.proMax+'g protein \u00b7 \u2264'+T.fatMax+'g fat \u00b7 ~'+T.carb+'g carbs.'
+    +(TRAVEL_CAL.length?' Travel days: up to '+TRAVEL_CAL[TRAVEL_CAL.length-1].max.toLocaleString()+' cal.':'');
 
   // streak: today not being logged yet doesn't break it
   let s=0, d=t;
-  if(!live(d)) d=addDays(d,-1);
-  while(live(d)){ s++; d=addDays(d,-1); }
+  if(!logged(d)) d=addDays(d,-1);
+  while(logged(d)){ s++; d=addDays(d,-1); }
   $('streakN').textContent=s;
 
   const ws=weekStart(t); let html='';
@@ -822,7 +972,7 @@ function render(){
       bar('Fat',f,T.fatMax,f>T.fatMax?'var(--red)':'var(--purple)',f+'g / '+T.fatMax)+
       bar('Carbs',cb,T.carb,'var(--teal)',cb+'g')+
       '<div class="hint">'+nd.length+' of the last 7 days logged · '+nd.filter(x=>macroHit(live(x))).length+' hit both cal & protein</div>';
-  } else $('macroCard').innerHTML='<div class="empty">Log a day of MFP totals to see averages.</div>';
+  } else $('macroCard').innerHTML='<div class="empty">Log a day of food totals to see averages.</div>';
 
   const rides=win.filter(x=>live(x)&&live(x).ride), walks=win.filter(x=>live(x)&&live(x).walk);
   $('cRides').textContent=rides.length; $('cWalks').textContent=walks.length;
@@ -832,7 +982,7 @@ function render(){
   drawRides(); drawWalks();
 
   const prs=Object.entries(DB.prs).sort((a,b)=>b[1].w-a[1].w);
-  $('prBoard').innerHTML=prs.length?prs.map(([n,p])=>'<div class="pr"><div><div class="n">'+esc(n)+'</div><div class="s">'+fmtD(p.d)+'</div></div><div class="w">'+p.w+'<small>× '+p.r+'</small></div></div>').join(''):'<div class="empty">No PRs yet.</div>';
+  $('prBoard').innerHTML=prs.length?prs.map(([n,p])=>'<div class="pr" onclick="openExHist(this.dataset.n)" data-n="'+esc(n)+'"><div><div class="n">'+esc(n)+'</div><div class="s">'+fmtD(p.d)+'</div></div><div class="w">'+p.w+'<small>× '+p.r+'</small></div></div>').join(''):'<div class="empty">No PRs yet.</div>';
 }
 
 /* ── CHARTS · trailing 7 days ── */
@@ -913,28 +1063,20 @@ const drawRides = ()=>bars7('rideChart',130,e=>e.ride&&e.ride.out,'#ef4444','No 
 const drawWalks = ()=>bars7('walkChart',130,e=>e.walk&&e.walk.mi,'#2dd4bf','No walks logged in the last 7 days','walkRange',v=>v.toFixed(1));
 
 /* ── PLAN ── */
-/* the plan is dated to the week it was written for. Once that week has passed,
-   show each day on the same weekday of THIS week, so "Load into log" lands on
-   the right date instead of back in the plan's original week. */
-function planTarget(d){
-  const ws=weekStart(todayStr());
-  if(!DB.plan||weekStart(DB.plan.weekOf)===ws) return d;
-  return addDays(ws,(new Date(d+'T12:00').getDay()+6)%7);
-}
 function renderPlan(){
   const plan=DB.plan; if(!plan) return;
-  $('planTitle').textContent='Week of '+fmtD(planTarget(plan.weekOf));
+  $('planTitle').textContent='Week of '+fmtD(plan.weekOf);
   const t=todayStr();
   $('planList').innerHTML=Object.keys(plan.days).sort().map(d=>{
-    const p=plan.days[d], td=planTarget(d);
-    const badge=p.kind==='rest'?'<span class="badge rest">Rest</span>':p.kind==='flex'?'<span class="badge opt">Droppable</span>':p.kind==='hiit'?'<span class="badge opt">HIIT</span>':'';
+    const p=plan.days[d];
+    const badge=p.kind==='rest'?'<span class="badge rest">Rest</span>':p.kind==='flex'?'<span class="badge opt">Droppable</span>':p.kind==='hiit'?'<span class="badge opt">HIIT</span>':p.kind==='travel'?'<span class="badge opt">Travel</span>':'';
     const exHtml=p.ex.map(x=>
       '<div class="pex"><div class="pex-head"><span class="pex-name">'+esc(x.name)+(x.opt?'<span class="badge opt">Optional</span>':'')+'</span><span class="pex-rx">'+esc(x.rx)+'</span></div>'+(x.note?'<div class="pex-note">'+esc(x.note)+'</div>':'')+'</div>'
     ).join('')||'<div class="empty" style="padding:8px">Nothing on the bar today. That’s the plan working.</div>';
-    const loadBtn=(p.kind==='lift'||p.kind==='flex')?'<div style="height:8px"></div><button class="btn btn-gold" onclick="event.stopPropagation();loadPlanDay(\''+d+'\')">Load into log</button>':'';
-    return '<div class="pday '+(td===t?'today open':'')+'">'
+    const loadBtn=(p.kind==='lift'||p.kind==='flex')?'<div style="height:8px"></div><button class="btn btn-gold" onclick="event.stopPropagation();loadPlanDay(\''+d+'\')">Load into today</button>':'';
+    return '<div class="pday '+(d===t?'today open':'')+'">'
       +'<div class="pday-head" onclick="this.parentElement.classList.toggle(\'open\')">'
-      +'<div class="pd">'+dow(td).toUpperCase()+'<small>'+fmtD(td)+'</small></div>'
+      +'<div class="pd">'+dow(d).toUpperCase()+'<small>'+fmtD(d)+'</small></div>'
       +'<div class="pt"><div class="t1">'+esc(p.title)+badge+'</div><div class="t2">'+esc(p.sub)+'</div></div>'
       +'<div class="chev">▶</div></div>'
       +'<div class="pday-body">'+exHtml+loadBtn+'</div></div>';
@@ -942,19 +1084,33 @@ function renderPlan(){
 }
 function loadPlanDay(d){
   const p=DB.plan.days[d]; if(!p) return;
-  loadForm(planTarget(d));
-  F.lift=true; syncTog();
-  $('fSession').value=['Pull','Legs','Push','Pull + Arms','Legs #2'].indexOf(p.title)>=0?p.title:(p.kind==='flex'?'Legs #2':'Other');
-  $('exList').innerHTML='';
-  p.ex.forEach(x=>addEx({name:x.name,note:x.note||'',rest:x.rest||90,sets:x.sets.map(s=>({w:s.w,r:'',done:false}))}));
-  autoSave();
-  go('log',document.querySelectorAll('nav button')[2]);
-  toast('Loaded '+p.title+' — weights + rest times set');
+  flushSave();
+  // the plan loads into TODAY — whichever day you actually lift it — never onto the
+  // plan's own calendar date, which would overwrite that day's real log
+  const t=todayStr(), cur=live(t);
+  const run=()=>{
+    loadForm(t);
+    F.lift=true; syncTog();
+    $('fSession').value=p.session?p.session:['Pull','Legs','Push','Pull + Arms','Legs #2','Full Body','Chest'].indexOf(p.title)>=0?p.title
+      :/full body/i.test(p.title)?'Full Body':/legs/i.test(p.title)?'Legs #2':'Other';
+    $('exList').innerHTML='';
+    // prefill target weight AND target reps, flagged `pre` so untouched targets are
+    // never mistaken for sets you actually performed
+    p.ex.forEach(x=>addEx({name:x.name,rx:x.rx||'',note:x.note||'',rest:x.rest||90,
+      sets:x.sets.map(s=>({w:s.w,r:s.r!=null?s.r:'',done:false,pre:true}))}));
+    autoSave();
+    go('log',document.querySelectorAll('nav button')[2]);
+    toast('Loaded '+p.title+' into today');
+  };
+  if(cur&&cur.lift&&(cur.lift.ex||[]).length)
+    askConfirm('Today already has '+(didLift(cur.lift)?'a logged ':'a loaded ')+(cur.lift.session||'lift')+' session. Replace it with '+p.title+'?',run);
+  else run();
 }
 
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
 let loading=false, saveT=null;
+let formDate='';     // the day the Log form holds — saves always go here
 function tog(k){ F[k]=!F[k]; syncTog(); autoSave(); }
 function syncTog(){
   $('tRide').classList.toggle('on',F.ride); $('rideFields').style.display=F.ride?'grid':'none';
@@ -964,7 +1120,9 @@ function syncTog(){
 }
 function openDay(d){ loadForm(d); go('log',document.querySelectorAll('nav button')[2]); }
 function loadForm(d){
+  flushSave();          // a pending edit belongs to the day we're leaving
   loading=true;
+  formDate=d;
   const e=live(d)||{};
   $('fDate').value=d; $('fWeight').value=e.weight!=null?e.weight:'';
   $('fCal').value=e.cal!=null?e.cal:''; $('fPro').value=e.pro!=null?e.pro:''; $('fCarb').value=e.carb!=null?e.carb:''; $('fFat').value=e.fat!=null?e.fat:'';
@@ -975,11 +1133,21 @@ function loadForm(d){
   $('fSession').value=e.lift&&e.lift.session?e.lift.session:'Pull';
   $('fNotes').value=e.notes||'';
   $('exList').innerHTML='';
-  ((e.lift&&e.lift.ex)||[]).forEach(x=>addEx({name:x.name,rest:x.rest||90,sets:(x.sets||[]).map(s=>({w:s.w,r:s.r,done:!!s.done}))}));
+  // carry target, coaching note and the untouched-target flag back in — dropping
+  // `pre` here is what turned reopened targets into "performed" sets
+  ((e.lift&&e.lift.ex)||[]).forEach(x=>addEx({name:x.name,rx:x.rx||'',note:x.note||'',rest:x.rest||90,
+    sets:(x.sets||[]).map(s=>({w:s.w,r:s.r,done:!!s.done,pre:!!s.pre}))}));
   $('delBtn').style.display=live(d)?'block':'none';
   $('saveState').textContent='';
   syncTog();
+  renderDateWarn();
   loading=false;
+}
+function renderDateWarn(){
+  const w=$('dateWarn');
+  if(!formDate || formDate===todayStr()){ w.style.display='none'; return; }
+  w.style.display='block';
+  w.innerHTML='Editing <b>'+dow(formDate)+' '+fmtD(formDate)+'</b>, not today. <u onclick="loadForm(todayStr())">Jump to today</u>';
 }
 
 function addEx(x){
@@ -989,23 +1157,94 @@ function addEx(x){
     +'<div class="exname-wrap"><span class="lbl">Exercise</span><input class="exname" list="exs" placeholder="Exercise" value="'+esc(x.name)+'"></div>'
     +'<div><span class="lbl">Rest sec</span><input class="restin" type="number" inputmode="numeric" min="0" value="'+(x.rest||90)+'"></div>'
     +'<button class="x" title="Remove exercise" onclick="this.closest(\'.ex\').remove();autoSave()">×</button></div>'
+    +(x.rx?'<div class="ex-rx" data-rx="'+esc(x.rx)+'">Target · '+esc(x.rx)+'</div>':'')
+    +'<button class="ex-last" title="Exercise history" onclick="openExHist(this.closest(\'.ex\').querySelector(\'.exname\').value)"></button>'
     +(x.note?'<div class="ex-note">'+esc(x.note)+'</div>':'')
     +'<div class="ex-sets">'+x.sets.map((s,i)=>setRow(i,s)).join('')+'</div>'
     +'<button class="add-link" onclick="addSet(this)">+ set</button>';
   $('exList').appendChild(div);
+  refreshLast(div);
   if(!$('exs')){const dl=document.createElement('datalist');dl.id='exs';dl.innerHTML=EX_SUGGEST.map(n=>'<option value="'+esc(n)+'"></option>').join('');document.body.appendChild(dl);}
 }
-const setRow=(i,s)=>'<div class="set'+(s.done?' done':'')+'"><span class="sn">'+(i+1)+'</span>'
+const setRow=(i,s)=>'<div class="set'+(s.done?' done':'')+(s.pre&&!s.done?' pre':'')+'"><span class="sn">'+(i+1)+'</span>'
   +'<button class="chk" title="Mark set done" onclick="setDone(this)">✓</button>'
-  +'<input inputmode="decimal" placeholder="lb / BW" value="'+esc(s.w!=null?s.w:'')+'">'
+  +'<input inputmode="decimal" placeholder="lb / BW" value="'+esc(s.w===0?'BW':(s.w!=null?s.w:''))+'">'
   +'<span style="color:var(--muted)">×</span>'
   +'<input type="number" inputmode="numeric" placeholder="reps" value="'+esc(s.r!=null?s.r:'')+'">'
   +'<button class="x" title="Remove set" onclick="this.closest(\'.set\').remove();autoSave()">×</button></div>';
 function addSet(btn){const c=btn.previousElementSibling;c.insertAdjacentHTML('beforeend',setRow(c.children.length,{w:'',r:'',done:false}));autoSave();}
+/* touching a prefilled set makes it real — typing in it or ticking it off */
+document.addEventListener('input',ev=>{
+  const row=ev.target.closest&&ev.target.closest('.set');
+  if(row){ row.classList.remove('pre'); delete row.dataset.wasPre; }
+  if(ev.target.classList&&ev.target.classList.contains('exname')) refreshLast(ev.target.closest('.ex'));
+});
+
+/* ── LAST TIME ── the most recent session of this exercise before the day you're logging ── */
+function refreshLast(div){
+  const el=div&&div.querySelector('.ex-last'); if(!el) return;
+  const name=div.querySelector('.exname').value.trim();
+  if(!name){ el.innerHTML=''; el.className='ex-last'; return; }
+  const prev=exSessions(name).filter(s=>s.d<(formDate||todayStr()));
+  const last=prev[prev.length-1], pr=DB.prs[canon(name)];
+  el.className='ex-last'+(last?'':' none');
+  el.innerHTML=last
+    ? '<span class="k">Last</span><span class="when">'+fmtD(last.d)+'</span><span class="sets">'+esc(fmtSets(last.sets))+'</span><span class="go">›</span>'
+    : pr && pr.d<(formDate||todayStr())   // session itself is gone, but its PR survived
+    ? '<span class="k">Best</span><span class="when">'+fmtD(pr.d)+'</span><span class="sets">'+pr.w+' × '+pr.r+'</span><span class="go">›</span>'
+    : '<span class="k">Last</span><span class="sets">No sets logged yet</span>';
+}
+
+/* ── EXERCISE HISTORY SHEET ── */
+function openExHist(name){
+  name=String(name||'').trim(); if(!name) return;
+  const ss=exSessions(name), pr=DB.prs[canon(name)];
+  const weighted=!!pr||ss.some(s=>s.sets.some(x=>x.w>0));
+  $('xhName').textContent=name;
+  if(weighted) $('xhPR').textContent=pr?'PR '+pr.w+' × '+pr.r+' · '+fmtD(pr.d):'No PR yet';
+  else { const best=ss.reduce((b,s)=>Math.max(b,...s.sets.map(x=>x.r)),0); $('xhPR').textContent=best?'Best set '+best+' reps':'Nothing logged yet'; }
+  $('xhChartNote').textContent=weighted?'Heaviest set each session':'Total reps each session';
+  $('xhList').innerHTML=ss.length?ss.slice().reverse().map(s=>
+    '<div class="xh-row"><span class="d">'+fmtD(s.d)+'</span><span class="s">'+esc(fmtSets(s.sets))+(pr&&pr.d===s.d?' 🏆':'')+'</span></div>').join('')
+    :'<div class="empty">No sets logged for this exercise yet.</div>';
+  $('xhWrap').style.display='flex';
+  drawExHist(ss,weighted);
+}
+function closeExHist(){ $('xhWrap').style.display='none'; }
+function drawExHist(ss,weighted){
+  const {ctx,W,H}=chartCtx('xhChart',150);
+  const pts=ss.slice(-12).map(s=>{
+    if(!weighted) return {d:s.d,v:s.sets.reduce((a,x)=>a+x.r,0),lbl:''};
+    const top=s.sets.reduce((b,x)=>(x.w>b.w||(x.w===b.w&&x.r>b.r))?x:b,s.sets[0]);
+    return {d:s.d,v:top.w,lbl:'×'+top.r};
+  });
+  if(!pts.length){ noData(ctx,W,H,'Nothing logged yet','xhRange'); return; }
+  const vals=pts.map(p=>p.v);
+  let lo=Math.min(...vals), hi=Math.max(...vals);
+  const padV=Math.max(2,(hi-lo)*.15); lo-=padV; hi+=padV;
+  const pad={l:10,r:10,t:22,b:22};
+  const X=i=>pts.length===1?W/2:pad.l+14+i*(W-pad.l-pad.r-28)/(pts.length-1);
+  const Y=v=>pad.t+(hi-v)/(hi-lo)*(H-pad.t-pad.b);
+  ctx.strokeStyle='#f5a623';ctx.lineWidth=2.5;ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(X(i),Y(p.v)):ctx.moveTo(X(i),Y(p.v)));
+  ctx.stroke();
+  const showLbl=i=>pts.length<=8||i===0||i===pts.length-1||pts[i].v===Math.max(...vals);
+  pts.forEach((p,i)=>{
+    ctx.fillStyle=i===pts.length-1?'#f0f0f0':'#f5a623'; ctx.beginPath(); ctx.arc(X(i),Y(p.v),3.2,0,7); ctx.fill();
+    if(showLbl(i)){ ctx.fillStyle='#f0f0f0';ctx.font='10px Inter, sans-serif';
+      const l=p.v+p.lbl; ctx.fillText(l,X(i)-ctx.measureText(l).width/2,Y(p.v)-8); }
+    ctx.fillStyle='#666';ctx.font='9.5px Inter, sans-serif';
+    if(showLbl(i)){ const dl=p.d.slice(5).replace('-','/').replace(/^0/,''); ctx.fillText(dl,X(i)-ctx.measureText(dl).width/2,H-6); }
+  });
+  $('xhRange').textContent=ss.length+' session'+(ss.length>1?'s':'');
+}
 function setDone(btn){
   const row=btn.closest('.set'), ex=btn.closest('.ex');
   const wasDone=row.classList.contains('done');
   row.classList.toggle('done');
+  // ticking it off makes the target real; un-ticking an untouched one makes it a target again
+  if(!wasDone){ if(row.classList.contains('pre')) row.dataset.wasPre='1'; row.classList.remove('pre'); }
+  else if(row.dataset.wasPre){ row.classList.add('pre'); delete row.dataset.wasPre; }
   if(!wasDone){
     const name=ex.querySelector('.exname').value||'Next set';
     const rest=Math.max(0,parseInt(ex.querySelector('.restin').value)||90);
@@ -1120,14 +1359,18 @@ function stopRest(){
 /* ── AUTO-SAVE ── */
 function readForm(){
   const n=v=>v===''||v==null?null:Number(v);
-  const e={date:$('fDate').value};
+  const e={date:formDate};   // the day the form was loaded for, even if the date picker just changed
   e.weight=n($('fWeight').value); e.cal=n($('fCal').value); e.pro=n($('fPro').value); e.carb=n($('fCarb').value); e.fat=n($('fFat').value);
   if(F.ride) e.ride={min:n($('fRideMin').value),out:n($('fRideOut').value),watts:n($('fRideW').value)};
   if(F.walk) e.walk={mi:n($('fWalkMi').value),min:n($('fWalkMin').value)};
   if(F.hiit) e.hiit={rounds:n($('fHiitR').value),min:n($('fHiitMin').value)};
   if(F.lift){
-    const ex=[...document.querySelectorAll('#exList .ex')].map(d=>({
+    const ex=[...document.querySelectorAll('#exList .ex')].map(d=>{
+      const rxEl=d.querySelector('.ex-rx'), noteEl=d.querySelector('.ex-note');
+      return {
       name:d.querySelector('.exname').value.trim(),
+      rx:rxEl?rxEl.dataset.rx:'',
+      note:noteEl?noteEl.textContent:'',
       rest:Math.max(0,parseInt(d.querySelector('.restin').value)||90),
       sets:[...d.querySelectorAll('.set')].map(s=>{
         const i=s.querySelectorAll('input');
@@ -1135,9 +1378,11 @@ function readForm(){
         let w=(wRaw===''||/^bw$/i.test(wRaw))?0:Number(wRaw);
         if(isNaN(w)) w=0;
         const r=rRaw===''?'':Number(rRaw);
-        return {w,r,done:s.classList.contains('done')};
-      }).filter(s=>s.w>0||s.r!==''||s.done)     // keep bodyweight and reps-only sets
-    })).filter(x=>x.name);
+        const o={w,r,done:s.classList.contains('done')};
+        if(s.classList.contains('pre')) o.pre=true;   // still just a target
+        return o;
+      }).filter(s=>s.pre||s.w>0||s.r!==''||s.done)     // keep targets (incl. bodyweight ones with no reps yet) and reps-only sets
+    };}).filter(x=>x.name);
     e.lift={session:$('fSession').value,ex};
   }
   e.notes=$('fNotes').value.trim();
@@ -1150,21 +1395,21 @@ function autoSave(){
   $('saveState').textContent='…';
   saveT=setTimeout(doSave,1200);
 }
+function flushSave(){ if(saveT){ clearTimeout(saveT); doSave(); } }
+/* after a merge brings in newer data, show it — unless you're mid-edit */
+function refreshForm(){ if(formDate && !saveT) loadForm(formDate); }
 function doSave(){
+  saveT=null;
   const e=readForm(); if(!e.date) return;
   if(!hasContent(e)){ $('saveState').textContent=''; return; }
-  const newPRs=[];
-  e.lift&&e.lift.ex.forEach(x=>{
-    const scored=x.sets.filter(s=>s.r!==''&&Number(s.r)>0&&s.w>0);
-    const best=scored.reduce((b,s)=>(!b||s.w>b.w||(s.w===b.w&&s.r>b.r))?s:b,null);
-    const cur=DB.prs[x.name];
-    if(best&&(!cur||best.w>cur.w||(best.w===cur.w&&best.r>cur.r))){
-      DB.prs[x.name]={w:best.w,r:Number(best.r),d:e.date};
-      newPRs.push(x.name+' '+best.w+'×'+best.r);
-    }
-  });
   e.u=Date.now();
+  const before=DB.prs||{};
   DB.days[e.date]=e;
+  DB.prs=computePRs();
+  const newPRs=Object.keys(DB.prs).filter(k=>{
+    const p=DB.prs[k], b=before[k];
+    return p.d===e.date && (!b || b.w!==p.w || b.r!==p.r);
+  }).map(k=>k+' '+DB.prs[k].w+'×'+DB.prs[k].r);
   const ok=writeLocal();
   if(!ok){ localOK=false; setBanner('nostore'); }
   render(); queuePush();
@@ -1172,8 +1417,8 @@ function doSave(){
   $('delBtn').style.display='block';
   if(newPRs.length) toast('PR! '+newPRs.join(', '));
 }
-document.addEventListener('input',ev=>{ if(ev.target.closest('#v-log')) autoSave(); });
-$('fDate').addEventListener('change',ev=>loadForm(ev.target.value));
+document.addEventListener('input',ev=>{ if(ev.target.id!=='fDate' && ev.target.closest('#v-log')) autoSave(); });
+$('fDate').addEventListener('change',ev=>{ if(ev.target.value) loadForm(ev.target.value); else ev.target.value=formDate; });
 
 /* in-page confirm — the sandbox silently blocks window.confirm */
 let confirmCB=null;
@@ -1190,10 +1435,12 @@ function closeConfirm(ok){
 $('confirmYes').addEventListener('click',()=>closeConfirm(true));
 
 function deleteDay(){
-  const d=$('fDate').value;
+  const d=formDate;
   if(!live(d)) return;
   askConfirm('Delete '+fmtD(d)+'? This removes it from every device.',()=>{
+    clearTimeout(saveT); saveT=null;   // a pending save would resurrect the day
     DB.days[d]={date:d,deleted:true,u:Date.now()};   // tombstone, so the delete syncs instead of resurrecting
+    DB.prs=computePRs();
     writeLocal(); render(); queuePush(); loadForm(d); toast('Deleted');
   });
 }
@@ -1203,7 +1450,7 @@ function renderHist(){
   const days=sorted().reverse();
   if(!days.length){ $('histList').innerHTML='<div class="empty">Nothing logged yet.</div>'; return; }
   $('histList').innerHTML=days.map(d=>{const e=live(d);
-    const tags=[e.ride?'Ride':'',e.hiit?'HIIT':'',e.walk?('Walk '+(e.walk.mi!=null?e.walk.mi+'mi':'')):'',e.lift?e.lift.session:''].filter(Boolean).join(' · ')||'Rest';
+    const tags=[e.ride?'Ride':'',e.hiit?'HIIT':'',e.walk?('Walk '+(e.walk.mi!=null?e.walk.mi+'mi':'')):'',didLift(e.lift)?e.lift.session:''].filter(Boolean).join(' · ')||'Rest';
     return '<div class="hist" onclick="openDay(\''+d+'\')"><div><div class="hd">'+dow(d)+' '+fmtD(d)+'</div><div class="hs">'+esc(tags)+'</div></div>'
     +'<div class="hv"><b>'+(e.weight!=null?e.weight:'–')+'</b><br>'+(e.cal!=null?e.cal:'–')+' cal · '+(e.pro!=null?e.pro:'–')+'g P · '+(e.fat!=null?e.fat:'–')+'g F</div></div>';}).join('');
 }
@@ -1219,18 +1466,18 @@ function buildExport(){
   const r=days.filter(d=>live(d).ride), w=days.filter(d=>live(d).walk), h=days.filter(d=>live(d).hiit);
   L.push('Cardio: '+r.length+' rides'+(r.length?' (avg '+Math.round(r.reduce((s,d)=>s+(live(d).ride.out||0),0)/r.length)+' kJ)':'')+' · '+w.length+' walks, '+w.reduce((s,d)=>s+(live(d).walk.mi||0),0).toFixed(1)+' mi'+(h.length?' · '+h.length+' HIIT':''),'');
   if(DB.plan){
-    const planDays=Object.keys(DB.plan.days).filter(d=>{const td=planTarget(d);return td>=ws&&td<=t&&['lift','flex'].indexOf(DB.plan.days[d].kind)>=0;});
+    const planDays=Object.keys(DB.plan.days).filter(d=>d>=ws&&d<=t&&['lift','flex'].indexOf(DB.plan.days[d].kind)>=0);
     if(planDays.length){
-      const done=planDays.filter(d=>{const e=live(planTarget(d));return e&&e.lift;}).length;
+      const done=planDays.filter(d=>live(d)&&didLift(live(d).lift)).length;
       L.push('Plan adherence: '+done+'/'+planDays.length+' planned sessions completed so far','');
     }
   }
   L.push('LIFTS');
-  days.filter(d=>live(d).lift).forEach(d=>{const l=live(d).lift;L.push(dow(d)+' '+fmtD(d)+' — '+l.session);
-    l.ex.forEach(x=>{const done=x.sets.filter(s=>s.r!==''&&s.r);if(!done.length)return;
-      const pr=DB.prs[x.name]&&DB.prs[x.name].d===d?' 🏆':'';
+  days.filter(d=>didLift(live(d).lift)).forEach(d=>{const l=live(d).lift;L.push(dow(d)+' '+fmtD(d)+' — '+l.session);
+    l.ex.forEach(x=>{const done=x.sets.filter(s=>!s.pre&&s.r!==''&&s.r);if(!done.length)return;
+      const pr=DB.prs[canon(x.name)]&&DB.prs[canon(x.name)].d===d?' 🏆':'';
       L.push('  '+x.name+': '+done.map(s=>(s.w>0?s.w:'BW')+'×'+s.r).join(', ')+pr);});});
-  if(!days.some(d=>live(d).lift)) L.push('  (none yet)');
+  if(!days.some(d=>didLift(live(d).lift))) L.push('  (none yet)');
   const notes=days.filter(d=>live(d).notes);
   if(notes.length){L.push('','NOTES');notes.forEach(d=>L.push(fmtD(d)+': '+live(d).notes));}
   $('expOut').value=L.join('\n');
@@ -1271,7 +1518,7 @@ function adopt(j){
   if(!j||!j.days) throw 0;
   stampAll(j);
   DB=mergeDB(DB,j);
-  DB.prs=DB.prs||{}; DB.plan=DB.plan||SEED_PLAN;
+  DB.plan=DB.plan||SEED_PLAN; DB.prs=computePRs();
   writeLocal(); render(); renderPlan(); queuePush();
 }
 function togglePaste(show){
@@ -1294,9 +1541,11 @@ function importJSON(inp){
 }
 function resetAll(){
   askConfirm('Delete every logged day on every device, reset PRs to the current board, and restore this week’s plan?',()=>{
+    clearTimeout(saveT); saveT=null;
     const u=Date.now(), tomb={};
     Object.keys(DB.days).forEach(d=>tomb[d]={date:d,deleted:true,u});   // tombstones so the wipe syncs
-    DB={days:tomb,prs:Object.assign({},SEED_PRS),plan:SEED_PLAN,planU:u};
+    DB={days:tomb,prs:{},plan:SEED_PLAN,planU:u};
+    DB.prs=computePRs();
     writeLocal(); render(); renderPlan(); queuePush(); toast('Cleared');
   });
 }
@@ -1306,3 +1555,6 @@ window.addEventListener('resize',()=>{clearTimeout(rsT);rsT=setTimeout(()=>{draw
 setSync('local');
 load();
 </script>
+
+
+
