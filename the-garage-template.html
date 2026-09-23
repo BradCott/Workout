@@ -503,10 +503,10 @@
 const GYM   = 'THE GARAGE';   // big title
 const OWNER = 'YOUR GYM';     // small line above it
 const T = { cal:2000, proMin:170, proMax:200, fatMax:70, carb:200 };  // daily targets
-const START_WEIGHT = 200;     // the weight you started at
+const START_WEIGHT = 257;     // the weight you started at
 /* Energy balance: resting burn comes from these (Mifflin-St Jeor); leave age or
    height null and it falls back to a rough estimate from bodyweight. */
-const ME = { age:null, heightIn:null, sex:'m' };
+const ME = { age:41, heightIn:null, sex:'m' };
 const GOAL_LBWK = 2;          // target loss per week
 const BEDTIME = 23;           // hour the day's projection runs to
 /* ─────────────────────────────────────── */
@@ -585,7 +585,7 @@ const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
    (session "Gymverse"), so Last time, exercise charts and the PR board use them.
    Placeholder 1 lb × 1 sets in Gymverse were dropped. Bump GV_U whenever lifts are
    added: an imported day is only replaced by a newer import, never over an in-app edit. */
-const GV_U = Date.parse('2026-09-23T16:30:00Z');   // fixed, never Date.now() — see SEED_U
+const GV_U = Date.parse('2026-09-23T16:40:00Z');   // fixed, never Date.now() — see SEED_U
 const GYMVERSE = {
   'Barbell Bench Press':{
     '2026-03-03':'155x15 175x12 185x8 185x8',
@@ -672,6 +672,29 @@ const GYMVERSE = {
     '2026-06-08':'180x18 200x16',
     '2026-07-20':'180x15 220x12',
   },
+  'Barbell Incline Bench':{                // Gymverse: Incline Barbell Bench Press
+    '2026-05-01':'95x25 95x25 95x23 95x18',
+    '2026-05-13':'95x10 95x16 95x16',
+    '2026-05-26':'95x16 95x16 95x16',
+    '2026-06-16':'95x15 115x15 115x15',   // Gymverse shows 115 reps on the last set, a typo
+  },
+  'Seated Cable Row':{                     // Gymverse: Seated Cable Row, Neutral Grip
+    '2026-05-14':'130x15 145x12 145x10',   // 4th set read 1145 lb, left out until confirmed
+    '2026-05-20':'130x15 135x14 135x13 115x12',
+    '2026-05-28':'130x15 145x13 145x13 145x10',
+    '2026-06-18':'130x15 145x11 145x10 115x12',
+  },
+  'Chest-Supported Row Machine':{          // Gymverse: Plate Loaded Chest Supported Row Machine, Neutral Grip, Narrow
+    '2025-08-22':'270x12 320x13 340x9 340x9',
+    '2026-01-14':'180x20 270x15 320x8 270x12 180x17',
+    '2026-01-23':'270x15 310x10 310x9 310x9 310x8',
+    '2026-03-03':'270x15 320x10',
+  },
+  'Walking Lunge':{                        // Gymverse: Dumbbell Walking Lunges · lb per dumbbell
+    '2025-10-10':'45x8 45x8 45x8',
+    '2025-10-22':'45x8 45x8',
+    '2025-11-05':'45x8 50x8 50x8',
+  },
 };
 
 /* ── EQUIPMENT · PLACES · EXERCISE LIBRARY ──
@@ -754,6 +777,7 @@ BK Straight-Arm Pulldown: cb
 BK Seated Cable Row: cb
 BK Single-Arm Cable Row: cb
 BK Machine Row: mc
+BK Chest-Supported Row Machine: mc
 BK Band Row: bd
 BK Band Lat Pulldown: bd
 BK Back Extension: gh
@@ -1043,6 +1067,10 @@ const EX_ALIAS = {
   'overhand grip lat pulldown':'Lat Pulldown',
   'dumbbell romanian deadlift':'Dumbbell RDL',
   'seated leg curl machine':'Seated Leg Curl',
+  'incline barbell bench press':'Barbell Incline Bench',
+  'seated cable row, neutral grip':'Seated Cable Row',
+  'plate loaded chest supported row machine, neutral grip, narrow':'Chest-Supported Row Machine',
+  'dumbbell walking lunges':'Walking Lunge',
 };
 const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
 const normName = n=>canon(n).toLowerCase();
