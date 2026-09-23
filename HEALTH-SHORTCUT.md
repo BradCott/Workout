@@ -1,8 +1,8 @@
 # Apple Health → The Garage
 
 A web page can't read Apple Health, so an iPhone Shortcut reads today's numbers and
-copies them. You paste them into the Log tab's **From Apple Health** box. That fills in
-weight and macros only; lifts, cardio and notes are never touched.
+opens the app with them in the link. The app fills them in by itself, with no pasting.
+It only fills in weight and macros. Lifts, cardio and notes are never touched.
 
 ## 1. Get MyFitnessPal into Apple Health (one time)
 
@@ -23,24 +23,29 @@ Shortcuts app → **+** → name it **Garage Health**. Add these actions in orde
 4. Repeat steps 2–3 for *Protein* → **Pro**, *Carbohydrates* → **Carb** and
    *Total Fat* → **Fat**.
 5. **Date** → *Current Date*, then **Format Date** → *Custom*: `yyyy-MM-dd`.
-6. **Text** — type this, inserting the variables where shown:
+6. **Text**: type this on one line, inserting the variables (blue bubbles) where shown:
    ```
-   date: [Formatted Date]
-   weight: [Weight]
-   cal: [Cal]
-   pro: [Pro]
-   carb: [Carb]
-   fat: [Fat]
+   https://claude.ai/artifact/98UF2bdZkXxmStaSLqVpBZ#h_[Formatted Date]_w[Weight]_c[Cal]_p[Pro]_cb[Carb]_f[Fat]
    ```
-7. **Copy to Clipboard** (input: the Text).
-8. *(Optional)* **Open URLs** → your app link, so it opens right after copying.
+7. **Open URLs** (input: the Text).
 
 The first run asks permission to read each Health type. Allow them all.
 
 ## 3. Daily use
 
-Run **Garage Health** (home-screen icon, widget or "Hey Siri, Garage Health") → open the
-app → Log tab → tap the box → **Paste**. It applies itself when you paste.
+Run **Garage Health** from the home-screen icon, a widget or "Hey Siri, Garage Health".
+The app opens on the Log tab with today's numbers filled in. Running it again later in
+the day updates them.
+
+To make it automatic: Shortcuts → **Automation** → **+** → *Time of Day* (e.g. 9 pm) →
+*Run Immediately* → Garage Health. It still opens the app. iOS won't let a web page
+sync silently in the background.
+
+## Pasting instead
+
+The **From Apple Health** box still works if you prefer copying: swap step 6 for
+`key: value` lines (`date:`, `weight:`, `cal:`, `pro:`, `carb:`, `fat:`) and step 7 for
+**Copy to Clipboard**.
 
 ## What the app accepts
 

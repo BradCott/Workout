@@ -1837,6 +1837,33 @@ function renderHK(){
 }
 $('hkIn').addEventListener('paste',()=>setTimeout(()=>applyHealth(),0));   // paste = done, no extra tap
 
+/* ── HEALTH VIA LINK ── the Shortcut can open the app with the numbers in the link
+   instead of copying them, so nothing needs pasting:
+       …/artifact/<id>#h_2026-09-23_w256.4_c1850_p160_cb170_f60
+   Only letters, digits . _ ~ - survive in the link, hence this compact form.
+   Applied once per distinct link, after the synced data has loaded. */
+function hashHealthText(){
+  const h=decodeURIComponent((location.hash||'').replace(/^#/,''));
+  if(!/^h[_~]/i.test(h)) return null;
+  const L=[];
+  h.split(/[_~]/).slice(1).forEach(t=>{
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(t)){ L.push('date: '+t); return; }
+    const m=t.match(/^(cb|w|c|p|f)(-?[\d.]*)$/i); if(!m||!m[2]) return;
+    L.push({w:'weight',c:'cal',p:'pro',cb:'carb',f:'fat'}[m[1].toLowerCase()]+': '+m[2]);
+  });
+  return L.length?{key:h,text:L.join('\n')}:null;
+}
+function applyHashHealth(){
+  const r=hashHealthText(); if(!r) return;
+  let last=null; try{ last=localStorage.getItem('garage:hk:last'); }catch(e){}
+  if(last===r.key) return;                                  // this exact link was already applied
+  try{ localStorage.setItem('garage:hk:last',r.key); }catch(e){}
+  if(currentView!=='log') go('log',document.querySelectorAll('nav button')[2]);
+  applyHealth(r.text);
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+}
+window.addEventListener('hashchange',applyHashHealth);
+
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
 let loading=false, saveT=null;
@@ -2286,7 +2313,7 @@ function resetAll(){
 let rsT=null;
 window.addEventListener('resize',()=>{clearTimeout(rsT);rsT=setTimeout(()=>{drawWeight();drawRides();drawWalks();},150)});
 setSync('local');
-load();
+load().catch(()=>{}).then(applyHashHealth);   // after cloud data merges, so a Health link never overwrites newer logs
 </script>
 
 
