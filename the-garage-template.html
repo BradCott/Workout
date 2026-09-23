@@ -141,6 +141,7 @@
   .ex{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px}
   .ex-head{display:flex;gap:6px;align-items:flex-end}
   .ex-head .exname-wrap{flex:1}
+  .exname[readonly]{cursor:pointer;font-weight:600;padding-right:26px;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12'%3E%3Cpath d='M1 1l5 5-5 5' fill='none' stroke='%2393a6bd' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 11px center}
   .ex-head .restin{width:66px;text-align:center;padding:8px 4px;font-size:13px}
   .ex-head .lbl{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
   .ex-rx{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--gold);margin:7px 2px 0;font-variant-numeric:tabular-nums}
@@ -1133,7 +1134,9 @@ const EX_ALIAS = {
   'plate loaded chest supported row machine, neutral grip, narrow':'Chest-Supported Row Machine',
   'dumbbell walking lunges':'Walking Lunge',
 };
-const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
+const aliasOf = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
+/* the one name a lift is tracked under: its name in the exercise list, whatever the spelling */
+const canon = n=>{const t=aliasOf(n), f=findEx(t); return f?f.name:t;};
 const normName = n=>canon(n).toLowerCase();
 /* every logged session of one exercise, oldest first */
 function exSessions(name){
@@ -1697,11 +1700,49 @@ const liveLocs = ()=>liveMap(DB.locs).map(id=>Object.assign({id},DB.locs[id])).s
 const locName = id=>{const l=DB.locs&&DB.locs[id]; return l&&!l.deleted?l.name:'';};
 function allEx(){
   const seen=new Set(), out=[];
-  liveMap(DB.lib).forEach(id=>{const x=DB.lib[id]; out.push({id,name:x.name,m:x.m||'FB',eq:x.eq||[],custom:true}); seen.add(normName(x.name));});
-  LIB.forEach(x=>{ if(!seen.has(normName(x.name))) out.push(x); });
+  liveMap(DB.lib).forEach(id=>{const x=DB.lib[id]; out.push({id,name:x.name,m:x.m||'FB',eq:x.eq||[],custom:true}); seen.add(exKey(x.name));});
+  LIB.forEach(x=>{ if(!seen.has(exKey(x.name))) out.push(x); });
   return out.sort((a,b)=>a.name.localeCompare(b.name));
 }
-function findEx(name){ const k=normName(name); return allEx().find(x=>normName(x.name)===k)||null; }
+/* one exercise list for everything: names are matched ignoring case, spacing and
+   punctuation, and "dumbbell"/"db", "barbell"/"bb", "kettlebell"/"kb" count as the same word */
+const exWords = n=>aliasOf(n).toLowerCase().replace(/\bdumb\w*/g,'db').replace(/\bbarb\w*/g,'bb').replace(/\bkettle\w*/g,'kb')
+  .replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(Boolean)
+  .map(w=>w.length>3&&/[^s]s$/.test(w)?w.slice(0,-1):w);   // "curls" = "curl"
+let EXIDX=null, EXSIG='';
+function exIndex(){   // exKey → exercise, rebuilt only when your custom exercises change
+  const lib=DB.lib||{}; let sig='';
+  for(const k in lib) sig+=k+':'+(lib[k].u||0)+(lib[k].deleted?'d':'')+',';
+  if(!EXIDX||sig!==EXSIG){ EXSIG=sig; EXIDX={}; allEx().forEach(x=>{ const k=exKey(x.name); if(!EXIDX[k]) EXIDX[k]=x; }); }
+  return EXIDX;
+}
+const exKey = n=>exWords(n).join('');
+function findEx(name){ const k=exKey(name); return k?exIndex()[k]||null:null; }
+function lev(a,b){
+  const m=a.length, n=b.length; if(!m||!n) return m||n;
+  let p=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){ const c=[i]; for(let j=1;j<=n;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1)); p=c; }
+  return p[n];
+}
+/* closest names in the list to a (possibly misspelled) one, best first */
+function closeEx(name,max){
+  const k=exKey(name), ws=exWords(name).sort().join(''); if(k.length<3) return [];
+  return allEx().map(x=>{ const xk=exKey(x.name), d=Math.min(lev(k,xk),lev(ws,exWords(x.name).sort().join('')));
+      return {x,s:d/Math.max(k.length,xk.length)}; })
+    .filter(o=>o.s<=0.34).sort((a,b)=>a.s-b.s).slice(0,max||3).map(o=>o.x);
+}
+/* a name from outside the list (the AI coach): snap it to the list, or add it */
+function snapEx(name){
+  name=String(name||'').replace(/\s+/g,' ').trim();
+  const exact=findEx(name); if(exact) return exact.name;
+  const near=closeEx(name,1)[0]; if(near&&lev(exKey(name),exKey(near.name))<=2) return near.name;   // a typo, not a new move
+  return name;
+}
+function ensureEx(name){
+  name=snapEx(name); if(!name||findEx(name)) return name;
+  DB.lib['c-'+slug(name)]={name,m:'FB',eq:[],u:Date.now()}; const dl=$('exs'); if(dl) dl.remove();
+  return name;
+}
 const canDo = (x,loc)=>!loc||!x.eq.length||x.eq.every(e=>(loc.eq||[]).includes(e));
 function restFor(name){
   const x=findEx(name); if(!x) return 90;
@@ -1829,12 +1870,47 @@ function viewLib(){
     +locs.map(l=>'<button class="chip'+(TR.locF===l.id?' on':'')+'" onclick="TR.locF=\''+l.id+'\';renderPlan()">'+esc(l.name)+'</button>').join('')+'</div>'
     +'<div class="chips" style="margin-top:0"><button class="chip'+(TR.mF==='all'?' on':'')+'" onclick="TR.mF=\'all\';renderPlan()">All muscles</button>'
     +Object.keys(MUSCLE).map(m=>'<button class="chip'+(TR.mF===m?' on':'')+'" onclick="TR.mF=\''+m+'\';renderPlan()">'+MUSCLE[m]+'</button>').join('')+'</div>';
+  h+=strayCard();
   h+= TR.cx ? customForm() : '<button class="add-link" onclick="TR.cx={name:TR.q,m:TR.mF!==\'all\'?TR.mF:\'FB\',eq:[]};renderPlan()">+ Add your own exercise</button>';
   return h+'<div class="card" id="libList" style="margin-top:6px"></div>';
 }
+/* names in the log, plan or saved workouts that aren't in the exercise list —
+   typos from before names were locked, or something renamed since */
+function strayNames(){
+  const c={}, add=(n,d)=>{ n=String(n||'').trim(); if(!n||findEx(n)) return; (c[n]=c[n]||{n:0,d:''}).n++; if(d&&d>c[n].d) c[n].d=d; };
+  sorted().forEach(d=>{ const l=live(d).lift; l&&(l.ex||[]).forEach(x=>add(x.name,d)); });
+  const withSets=ex=>(ex||[]).filter(x=>(x.sets||[]).length);   // a HIIT class line has no sets and isn't a lift
+  liveMap(DB.tpl).forEach(id=>withSets(DB.tpl[id].ex).forEach(x=>add(x.name)));
+  if(DB.plan) Object.values(DB.plan.days||{}).forEach(p=>withSets(p.ex).forEach(x=>add(x.name)));
+  return Object.keys(c).sort().map(n=>({name:n,uses:c[n].n,last:c[n].d}));
+}
+function strayCard(){
+  const xs=strayNames(); if(!xs.length) return '';
+  return '<div class="card" style="border-color:var(--red)"><div style="font-weight:700">'+xs.length+' name'+(xs.length>1?'s':'')+' in your log aren’t in the list</div>'
+    +'<div class="hint" style="margin-top:2px">Merge each into the right exercise so its sets count toward that lift’s history and PRs, or keep it as its own exercise.</div>'
+    +xs.map(x=>'<div class="lib-row" style="cursor:default"><div><div class="nm">'+esc(x.name)+'</div><div class="mt">'+x.uses+' time'+(x.uses>1?'s':'')+(x.last?' · last '+fmtD(x.last):'')
+      +(closeEx(x.name,1).length?' · close to '+esc(closeEx(x.name,1)[0].name):'')+'</div></div>'
+      +'<div style="display:flex;gap:4px"><button class="btn btn-gold sm" data-n="'+esc(x.name)+'" onclick="mergeStray(this.dataset.n)">Merge</button>'
+      +'<button class="btn btn-dark sm" data-n="'+esc(x.name)+'" onclick="keepStray(this.dataset.n)">Keep</button></div></div>').join('')+'</div>';
+}
+function mergeStray(from){
+  PK=null; openPicker({loc:'all',onPick:to=>askConfirm('Rename every “'+from+'” in your log, plan and saved workouts to “'+to+'”?',()=>{
+    const now=Date.now(), fix=ex=>{ let n=0; (ex||[]).forEach(x=>{ if(String(x.name||'').trim()===from){ x.name=to; n++; } }); return n; };
+    let days=0;
+    Object.keys(DB.days).forEach(d=>{ const e=live(d); if(e&&e.lift&&fix(e.lift.ex)){ e.u=now; days++; } });
+    liveMap(DB.tpl).forEach(id=>{ if(fix(DB.tpl[id].ex)) DB.tpl[id].u=now; });
+    if(DB.plan&&Object.values(DB.plan.days||{}).some(p=>(p.ex||[]).some(x=>String(x.name||'').trim()===from))){
+      Object.values(editablePlan().days||{}).forEach(p=>fix(p.ex)); DB.planU=Math.max(now,SEED_PLAN_U+1); }
+    DB.prs=computePRs(); writeLocal(); render(); dataTouch(); if(formDate) refreshForm();
+    toast('Merged into '+to+(days?' · '+days+' day'+(days>1?'s':'')+' updated':''));
+  })});
+  const q=$('pkQ'); if(q){ q.value=from; PK.q=from; pkList(); }   // start from the closest matches
+}
+function keepStray(name){ DB.lib['c-'+slug(name)]={name,m:'FB',eq:[],u:Date.now()}; dataTouch(); toast('Added '+name+' to your exercises'); }
 function libFilter(q,locId,m){
-  const loc=locId&&locId!=='all'?DB.locs[locId]:null; q=String(q||'').trim().toLowerCase();
-  return allEx().filter(x=>(!q||x.name.toLowerCase().includes(q)||(MUSCLE[x.m]||'').toLowerCase().includes(q))&&(m==='all'||x.m===m)&&canDo(x,loc));
+  const loc=locId&&locId!=='all'?DB.locs[locId]:null, qw=exWords(q);
+  const hit=x=>{ const hay=exWords(x.name).join(' ')+' '+(MUSCLE[x.m]||'').toLowerCase(); return qw.every(w=>hay.includes(w)); };
+  return allEx().filter(x=>(!qw.length||hit(x))&&(m==='all'||x.m===m)&&canDo(x,loc));
 }
 function renderLibList(){
   const el=$('libList'); if(!el) return;
@@ -1859,9 +1935,13 @@ function customForm(){
 function cxEq(e){ const a=TR.cx.eq, i=a.indexOf(e); i<0?a.push(e):a.splice(i,1); renderPlan(); }
 function saveCustom(){
   const c=TR.cx, name=String(c.name||'').trim(); if(!name){ toast('Give it a name'); return; }
-  if(findEx(name)&&!findEx(name).custom){ toast('“'+name+'” is already in the library'); return; }
-  DB.lib['c-'+slug(name)]={name,m:c.m,eq:c.eq.slice(),u:Date.now()}; TR.cx=null; TR.q=name; dataTouch(); toast('Added '+name);
-  const dl=$('exs'); if(dl) dl.remove();   // rebuilt with the new name next time
+  const hit=findEx(name);
+  if(hit&&!(hit.custom&&hit.id==='c-'+slug(name))){ toast('Already in your list as “'+hit.name+'”'); return; }
+  const save=()=>{ DB.lib['c-'+slug(name)]={name,m:c.m,eq:c.eq.slice(),u:Date.now()}; TR.cx=null; TR.q=name; dataTouch(); toast('Added '+name);
+    const dl=$('exs'); if(dl) dl.remove(); };   // rebuilt with the new name next time
+  const near=hit?[]:closeEx(name,2);
+  if(near.length) askConfirm('“'+name+'” looks close to '+near.map(x=>'“'+x.name+'”').join(' and ')+', already in your list. Add it as a separate exercise anyway?',save);
+  else save();
 }
 function delCustom(id){ askConfirm('Remove “'+DB.lib[id].name+'” from your exercises? Logged sets keep their history.',()=>{ DB.lib[id]={deleted:true,u:Date.now()}; dataTouch(); }); }
 
@@ -1971,15 +2051,27 @@ function pkRender(){
 function pkList(){
   const el=$('pkList'); if(!el) return;
   const xs=libFilter(PK.q,PK.loc,PK.m), q=PK.q.trim();
-  const exact=q&&xs.some(x=>x.name.toLowerCase()===q.toLowerCase());
-  el.innerHTML=(q&&!exact?'<div class="lib-row" data-n="'+esc(q)+'" onclick="pkNew(this.dataset.n)"><div><div class="nm" style="color:var(--gold)">+ Use “'+esc(q)+'”</div><div class="mt">Adds it to your exercises</div></div></div>':'')
-    +xs.map(x=>{const pr=DB.prs[canon(x.name)];
+  const exact=q&&findEx(q);
+  // spelled a little wrong? offer the real ones before anything new
+  const near=q&&!exact?closeEx(q,4).filter(x=>!xs.includes(x)):[];
+  const row=x=>{const pr=DB.prs[canon(x.name)];
       return '<div class="lib-row" data-n="'+esc(x.name)+'" onclick="pkPick(this.dataset.n)"><div><div class="nm">'+esc(x.name)+'</div><div class="mt">'+(MUSCLE[x.m]||'')+' · '+esc(eqLabel(x))+'</div></div>'
-        +(pr?'<span class="lr">'+pr.w+'<small style="font-family:Inter,sans-serif;font-size:11px;color:var(--muted)"> × '+pr.r+'</small></span>':'')+'</div>';}).join('')
-    +(!xs.length&&!q?'<div class="empty">Nothing here for this place and muscle.</div>':'');
+        +(pr?'<span class="lr">'+pr.w+'<small style="font-family:Inter,sans-serif;font-size:11px;color:var(--muted)"> × '+pr.r+'</small></span>':'')+'</div>';};
+  el.innerHTML=(near.length?'<div class="mini" style="margin-top:0">Did you mean</div>'+near.map(row).join('')+'<div class="mini">Search results</div>':'')
+    +xs.map(row).join('')
+    +(!xs.length&&!near.length?'<div class="empty">'+(q?'Nothing in your list matches “'+esc(q)+'”.':'Nothing here for this place and muscle.')+'</div>':'')
+    +(q&&!exact?'<div class="lib-row" data-n="'+esc(q)+'" onclick="pkNew(this.dataset.n)"><div><div class="nm" style="color:var(--gold)">+ Add “'+esc(q)+'” as a new exercise</div><div class="mt">Only if it’s really not in the list above</div></div></div>':'');
 }
 function pkPick(name){ const cb=PK&&PK.onPick; closePicker(); cb&&cb(name); }
-function pkNew(name){ name=String(name).trim(); if(!findEx(name)){ DB.lib['c-'+slug(name)]={name,m:PK.m!=='all'?PK.m:'FB',eq:[],u:Date.now()}; writeLocal(); queuePush(); } pkPick(name); }
+function pkNew(name){
+  name=String(name).replace(/\s+/g,' ').trim(); if(!name) return;
+  const hit=findEx(name); if(hit){ pkPick(hit.name); return; }
+  const near=closeEx(name,2), m=PK.m!=='all'?PK.m:'FB';
+  askConfirm('Add “'+name+'” as a new exercise?'+(near.length?' It looks close to '+near.map(x=>'“'+x.name+'”').join(' and ')+', which are already in your list.':'')
+    +' Its history will be tracked under exactly this name.',()=>{
+    DB.lib['c-'+slug(name)]={name,m,eq:[],u:Date.now()}; writeLocal(); queuePush(); const dl=$('exs'); if(dl) dl.remove();
+    pkPick(name); toast('Added '+name); });
+}
 function pkChoose(i){ const it=PK.items[i]; closePicker(); it&&it.fn(); }
 
 /* Log tab: add an exercise from the library, filtered to where you are */
@@ -2356,7 +2448,7 @@ function aiHist(){
 }
 /* the model's exercise list → the app's exercise rows */
 const aiEx = list=>(Array.isArray(list)?list:[]).filter(x=>x&&x.name).slice(0,12).map(x=>rowToEx({
-  name:String(x.name).trim(), n:String(Math.max(1,Math.min(8,parseInt(x.sets)||3))), r:String(x.reps==null?'':x.reps),
+  name:snapEx(x.name), n:String(Math.max(1,Math.min(8,parseInt(x.sets)||3))), r:String(x.reps==null?'':x.reps),
   w:x.weight==null||x.weight===''||isNaN(Number(x.weight))?'':String(Number(x.weight)), rest:String(parseInt(x.rest)||restFor(x.name)), note:String(x.note||'')}));
 /* what the coach knows: you, today, recent training, the place, your numbers */
 function aiContext(){
@@ -2405,8 +2497,10 @@ async function aiDraft(){
   }catch(e){ AI.msg=e&&e.code==='cancelled'?'Stopped.':aiErr(e&&e.code); }
   finally{ AI.busy=false; AI.ctl=null; aiRender(); }
 }
-function aiLoad(){ const p=AI.plan; if(!p) return; closeAI(); loadWorkout(clone(p)); }
-function aiSave(){ const p=AI.plan; if(!p) return; DB.tpl[newId()]=Object.assign(clone(p),{u:Date.now()}); dataTouch(); toast('Saved “'+p.title+'” to Workouts'); }
+/* whatever the coach wrote goes into the exercise list before it's used anywhere */
+const aiKeep = ex=>{ ex.forEach(x=>{ x.name=ensureEx(x.name); }); writeLocal(); return ex; };
+function aiLoad(){ const p=AI.plan; if(!p) return; aiKeep(p.ex); closeAI(); loadWorkout(clone(p)); }
+function aiSave(){ const p=AI.plan; if(!p) return; aiKeep(p.ex); DB.tpl[newId()]=Object.assign(clone(p),{u:Date.now()}); dataTouch(); toast('Saved “'+p.title+'” to Workouts'); }
 
 /* ── ADJUST MID-WORKOUT ── tell the coach what's wrong ("no cable machine free",
    "shoulder's cranky", "20 minutes left") and it rewrites the exercises you
@@ -2462,6 +2556,7 @@ async function adjDraft(){
 }
 function adjApply(){
   if(!ADJ.plan) return;
+  aiKeep(ADJ.plan);
   const cur=readForm(), keep=((cur.lift&&cur.lift.ex)||[]).filter(exStarted);
   $('exList').innerHTML='';
   keep.forEach(x=>addEx({name:x.name,rx:x.rx||'',note:x.note||'',rest:x.rest||90,sets:x.sets.map(s=>({w:s.w,r:s.r,done:!!s.done,pre:!!s.pre}))}));
@@ -2520,17 +2615,21 @@ function addEx(x){
   x=x||{name:'',rest:90,sets:[{w:'',r:'',done:false},{w:'',r:'',done:false},{w:'',r:'',done:false}]};
   const div=document.createElement('div'); div.className='ex';
   div.innerHTML='<div class="ex-head">'
-    +'<div class="exname-wrap"><span class="lbl">Exercise</span><input class="exname" list="exs" placeholder="Exercise" value="'+esc(x.name)+'"></div>'
+    +'<div class="exname-wrap"><span class="lbl">Exercise · tap to change</span><input class="exname" readonly placeholder="Pick exercise" value="'+esc(x.name)+'" onclick="swapLogEx(this)"></div>'
     +'<div><span class="lbl">Rest sec</span><input class="restin" type="number" inputmode="numeric" min="0" value="'+(x.rest||90)+'"></div>'
     +'<button class="x" title="Remove exercise" onclick="this.closest(\'.ex\').remove();autoSave()">×</button></div>'
     +(x.rx?'<div class="ex-rx" data-rx="'+esc(x.rx)+'">Target · '+esc(x.rx)+'</div>':'')
-    +'<button class="ex-last" title="Exercise history" onclick="openExHist(this.closest(\'.ex\').querySelector(\'.exname\').value)"></button>'
+    +'<button class="ex-last" title="Exercise history" onclick="exLastTap(this)"></button>'
     +(x.note?'<div class="ex-note">'+esc(x.note)+'</div>':'')
     +'<div class="ex-sets">'+x.sets.map((s,i)=>setRow(i,s)).join('')+'</div>'
     +'<button class="add-link" onclick="addSet(this)">+ set</button>';
   $('exList').appendChild(div);
   refreshLast(div);
-  if(!$('exs')){const dl=document.createElement('datalist');dl.id='exs';dl.innerHTML=allEx().map(x=>'<option value="'+esc(x.name)+'"></option>').join('');document.body.appendChild(dl);}
+}
+function exLastTap(b){ const inp=b.closest('.ex').querySelector('.exname'); findEx(inp.value)?openExHist(inp.value):swapLogEx(inp); }
+/* names come only from the exercise list, so one lift can't end up tracked under two spellings */
+function swapLogEx(inp){
+  openPicker({loc:$('fLoc').value||'all',onPick:name=>{ inp.value=name; refreshLast(inp.closest('.ex')); autoSave(); }});
 }
 const setRow=(i,s)=>'<div class="set'+(s.done?' done':'')+(s.pre&&!s.done?' pre':'')+'"><span class="sn">'+(i+1)+'</span>'
   +'<button class="chk" title="Mark set done" onclick="setDone(this)">✓</button>'
@@ -2551,6 +2650,8 @@ function refreshLast(div){
   const el=div&&div.querySelector('.ex-last'); if(!el) return;
   const name=div.querySelector('.exname').value.trim();
   if(!name){ el.innerHTML=''; el.className='ex-last'; return; }
+  if(!findEx(name)){ el.className='ex-last none';
+    el.innerHTML='<span class="k" style="color:var(--red)">Not in list</span><span class="sets">Tap to pick the right exercise</span><span class="go">›</span>'; return; }
   const prev=exSessions(name).filter(s=>s.d<(formDate||todayStr()));
   const last=prev[prev.length-1], pr=DB.prs[canon(name)];
   el.className='ex-last'+(last?'':' none');
