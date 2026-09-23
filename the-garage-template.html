@@ -580,6 +580,22 @@ const SEED_PLAN = {
    that moves every load makes seeded data look edited (see SEED_U). */
 const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
 
+/* ── GYMVERSE HISTORY ── lifts from before this app, read off Gymverse screenshots.
+   One line per session: 'YYYY-MM-DD': 'weight×reps …'. They become past days
+   (session "Gymverse"), so Last time, exercise charts and the PR board use them.
+   Placeholder 1 lb × 1 sets in Gymverse were dropped. Bump GV_U whenever lifts are
+   added: an imported day is only replaced by a newer import, never over an in-app edit. */
+const GV_U = Date.parse('2026-09-23T16:00:00Z');   // fixed, never Date.now() — see SEED_U
+const GYMVERSE = {
+  'Barbell Bench Press':{
+    '2026-03-03':'155x15 175x12 185x8 185x8',
+    '2026-05-13':'135x20 155x16 155x15 155x13',
+    '2026-05-19':'135x20 155x17 155x15 155x11',
+    '2026-05-26':'95x15 115x15 115x15',
+    '2026-06-11':'95x15 135x15 135x15 135x15',
+  },
+};
+
 /* ── EQUIPMENT · PLACES · EXERCISE LIBRARY ──
    Places and custom exercises live in the synced data (edit them in Train → Places /
    Exercises); these are only the starting set. An exercise is available at a place when
@@ -1481,6 +1497,20 @@ function seedDefaults(){
   // fixed stamp (SEED_U) — a fresh one every load would look like an edit and loop the sync
   for(const k in SEED_LOCS) if(!DB.locs[k]) DB.locs[k]=Object.assign(clone(SEED_LOCS[k]),{u:SEED_U});
   for(const k in SEED_TPL) if(!DB.tpl[k]) DB.tpl[k]=Object.assign(clone(SEED_TPL[k]),{u:SEED_U});
+  seedGymverse();
+}
+function seedGymverse(){
+  const byDay={};
+  Object.keys(GYMVERSE).forEach(name=>Object.keys(GYMVERSE[name]).forEach(d=>{
+    const sets=GYMVERSE[name][d].trim().split(/\s+/).map(t=>{const m=t.match(/^([\d.]+|bw)x(\d+)$/i);
+      return m?{w:/bw/i.test(m[1])?0:Number(m[1]),r:Number(m[2]),done:true}:null;}).filter(Boolean);
+    if(sets.length) (byDay[d]=byDay[d]||[]).push({name,rx:'',note:'',rest:restFor(name),sets});
+  }));
+  Object.keys(byDay).forEach(d=>{
+    const cur=DB.days[d];
+    if(cur && !(cur.gv && (cur.u||0)<GV_U)) return;   // a real or edited day always wins
+    DB.days[d]={date:d,gv:true,u:GV_U,notes:'Imported from Gymverse',lift:{session:'Gymverse',loc:'',ex:byDay[d]}};
+  });
 }
 const liveLocs = ()=>liveMap(DB.locs).map(id=>Object.assign({id},DB.locs[id])).sort((a,b)=>(a.ord||99)-(b.ord||99)||a.name.localeCompare(b.name));
 const locName = id=>{const l=DB.locs&&DB.locs[id]; return l&&!l.deleted?l.name:'';};
