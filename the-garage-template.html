@@ -281,6 +281,13 @@
   .ai-mic{flex:none!important;width:52px;padding:14px 0}
   .ai-mic.on{background:var(--red);border-color:var(--red);color:#fff}
   .ai-why{font-size:13px;line-height:1.5;margin:6px 0 4px}
+  /* weekend bank */
+  .bk-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px}
+  .bk-days div{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 2px;text-align:center}
+  .bk-days span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono)}
+  .bk-days b{display:block;font-family:var(--disp);font-size:15px;font-weight:400;margin-top:2px;font-variant-numeric:tabular-nums}
+  .bk-days .up b{color:var(--green)}.bk-days .dn b{color:var(--red)}.bk-days .nd b{color:var(--faint)}
+  .bk-days .now{border-color:var(--gold)}.bk-days .we{background:var(--gold-dim)}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -301,6 +308,9 @@
 <div class="view on wrap" id="v-dash">
   <div class="section-title">Today</div>
   <div class="card" id="todayCard"></div>
+
+  <div class="section-title">Weekend bank</div>
+  <div class="card" id="bankCard"></div>
 
   <div class="section-title">This week</div>
   <div class="week" id="week"></div>
@@ -1481,7 +1491,7 @@ function checkDay(){
 window.addEventListener('focus',checkDay);
 window.addEventListener('pageshow',checkDay);
 setInterval(checkDay,60000);
-setInterval(()=>{ if(currentView==='dash') renderToday(); },300000);   // projection moves with the clock
+setInterval(()=>{ if(currentView==='dash'){ renderToday(); renderBank(); } },300000);   // projection moves with the clock
 
 async function copyBackup(){
   const j=JSON.stringify(DB);
@@ -1525,7 +1535,7 @@ function render(){
   if(!logged(d)) d=addDays(d,-1);
   while(logged(d)){ s++; d=addDays(d,-1); }
   $('streakN').textContent=s;
-  renderHK(); renderToday();
+  renderHK(); renderToday(); renderBank();
 
   const ws=weekStart(t); let html='';
   for(let i=0;i<7;i++){
@@ -2224,6 +2234,55 @@ function renderToday(){
     +coachHtml
     +'<div class="hint">Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
       +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
+}
+
+/* ── WEEKEND BANK ── every day this week is scored against its own target
+   (that day's burn − the daily deficit). Eat under it and the difference is banked;
+   eat over and it's withdrawn. Whatever is left is extra you can spend on the
+   weekend and still average the planned deficit for the week. */
+const PIZZA_SLICE = 285, BEER = 150;   // cal: a slice of large pepperoni, a regular beer
+function weekBank(){
+  const t=todayStr(), ws=weekStart(t), C=calib(), R=rmr(), days=[];
+  let bank=0, known=0, past=0;
+  for(let i=0;i<7;i++){
+    const d=addDays(ws,i), e=live(d), wkd=i>=5;
+    if(d>t){ days.push({d,wkd,fut:true}); continue; }
+    if(d===t){ const over=TODAY_E&&TODAY_E.eaten?-Math.min(0,TODAY_E.room):0; days.push({d,wkd,today:true,delta:-over,room:TODAY_E?TODAY_E.room:null}); continue; }
+    past++;
+    if(!e||e.cal==null){ days.push({d,wkd,nodata:true}); continue; }
+    const burn=(R+ACT_TRUST*(e.burnA||0))*C.k, delta=(burn-DEFICIT)-e.cal;
+    const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
+    days.push({d,wkd,delta,partial:h<20,noBurn:!e.burnA});
+    bank+=delta; known++;
+  }
+  const todayOver=days.find(x=>x.today); 
+  return {days,bank,known,past,left:bank+(todayOver?todayOver.delta:0),weekend:[0,6].includes(new Date(t+'T12:00').getDay())};
+}
+function renderBank(){
+  const el=$('bankCard'); if(!el) return;
+  const W=weekBank(), v=W.left, pos=v>=0;   // today's overage already taken out
+  const sgn=n=>(n>=0?'+':'−')+fmtN(Math.abs(n));
+  const treats=pos&&v>=100?'≈ '+Math.floor(v/PIZZA_SLICE)+' slices of pizza or '+Math.floor(v/BEER)+' beers':'';
+  let call;
+  if(!W.known&&!W.weekend) call='Nothing banked yet this week. Every day you finish under target adds to it.';
+  else if(W.weekend) call=pos?'Enjoy it. This is what’s left for the rest of the weekend with the week still on pace.'
+    :'The week is already spent. Anything extra this weekend slows the loss, so stick to target.';
+  else call=pos?'Finish the week on target and this is extra you can enjoy Saturday and Sunday.'
+    :'You’re over for the week. The weekend is off limits unless you make it up before Friday.';
+  const t=W.days.find(x=>x.today);
+  if(!W.weekend&&t&&t.delta<0) call+=' That already counts today being '+fmtN(-t.delta)+' over.';
+  const warn=W.days.filter(x=>x.partial||x.noBurn).map(x=>dow(x.d)+(x.noBurn?' has no burn data':' was last synced before 8 PM'));
+  el.innerHTML='<div class="td-head"><div><div class="td-big '+(pos?'green':'red')+'">'+sgn(v)+'<small>cal</small></div>'
+      +'<div class="td-lbl">'+(W.weekend?'left for this weekend':'banked for the weekend')+'</div></div>'
+      +(treats?'<div style="text-align:right;font-size:12.5px;color:var(--muted);max-width:48%">'+treats+'</div>':'')+'</div>'
+    +'<div class="bk-days">'+W.days.map(x=>{
+      const cls=(x.today?'now ':'')+(x.wkd?'we ':'')+(x.fut||x.nodata?'nd':x.delta>=0?'up':'dn');
+      const val=x.fut?'':x.nodata?'–':x.today&&x.delta===0?'…':(x.delta>=0?'+':'−')+fmtN(Math.abs(x.delta));
+      return '<div class="'+cls+'"><span>'+dow(x.d)+'</span><b>'+val+'</b></div>';}).join('')+'</div>'
+    +'<div class="td-call" style="font-size:13.5px">'+call+'</div>'
+    +'<div class="hint">Each day counts against its own target: that day’s burn minus '+fmtN(DEFICIT)+'. '
+      +'Run your Shortcut before bed so every day has its full food and burn.'
+      +(warn.length?' Might be off: '+warn.join(', ')+'.':'')+(W.past-W.known>0?' '+(W.past-W.known)+' day'+(W.past-W.known>1?'s':'')+' this week had no food logged and '+(W.past-W.known>1?'aren’t':'isn’t')+' counted.':'')+'</div>';
 }
 
 /* ── AI COACH ── drafts one session from your history, recovery, the place's
