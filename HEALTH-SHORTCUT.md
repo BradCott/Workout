@@ -35,6 +35,20 @@ check the box under the last action after a run and make sure every number is th
 
 The first run asks permission to read each Health type. Allow them all.
 
+### Optional: send yesterday's final totals too
+
+The Weekend bank scores each day on the last numbers the Shortcut sent for it. If you
+only run it at lunch, that day looks like you barely ate. To fix that automatically,
+have every run also send **yesterday's** full totals:
+
+1. Add **Find Health Samples** → Type *Dietary Energy* · Start Date *is yesterday*, then
+   **Calculate Statistics** → *Sum*, then **Set Variable** → **YCal**.
+2. Same again for *Active Energy* → **YBurn**.
+3. Put these six actions above the Text action, and add to the end of the link:
+   `_yc[YCal]_yae[YBurn]`
+
+The first run of each day then locks in the day before.
+
 ## 3. Daily use
 
 Run **Garage Health** from the home-screen icon, a widget or "Hey Siri, Garage Health".
@@ -59,5 +73,6 @@ The **From Apple Health** box still works if you prefer copying: swap step 6 for
 - Without a `date:` line it goes to whichever day the Log tab is showing.
 - Keys: `weight`, `cal`/`calories`, `pro`/`protein`, `carb`/`carbs`, `fat`, `active` (burned), `resting`.
 - Link codes: `w` weight, `c` cal, `p` protein, `cb` carbs, `f` fat, `ae` active energy, `re` resting energy.
+  `yc` / `yae` are yesterday's food and active energy.
 
 Manual entry is still there under **Enter manually** on the Log tab.

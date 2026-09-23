@@ -2091,12 +2091,15 @@ function hashHealthText(){
   try{ h=decodeURIComponent(h); }catch(e){}
   h=h.replace(/\s+/g,'').replace(/,/g,'').replace(/(lb|lbs|kcal|cal|g)(?=[_~]|$)/gi,'');   // tolerate spaces, commas, units
   if(!/^h[_~]/i.test(h)) return null;
-  const L=[];
+  const L=[], Y=[]; let day=null;
   h.split(/[_~]/).slice(1).forEach(t=>{
-    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(t)){ L.push('date: '+t); return; }
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(t)){ day=hkDate(t); L.push('date: '+t); return; }
+    const y=t.match(/^(yae|yc)([\d.]+)$/i);   // yesterday's final totals, sent by the next morning's run
+    if(y){ Y.push({yc:'cal',yae:'active'}[y[1].toLowerCase()]+': '+y[2]); return; }
     const m=t.match(/^(cb|ae|re|w|c|p|f)(-?[\d.]*)$/i); if(!m||!m[2]) return;
     L.push({w:'weight',c:'cal',p:'pro',cb:'carb',f:'fat',ae:'active',re:'resting'}[m[1].toLowerCase()]+': '+m[2]);
   });
+  if(Y.length) L.push('date: '+addDays(day||todayStr(),-1),...Y);
   return L.length?{key:h,text:L.join('\n')}:null;
 }
 function applyHashHealth(){
@@ -2240,7 +2243,10 @@ function renderToday(){
    (that day's burn − the daily deficit). Eat under it and the difference is banked;
    eat over and it's withdrawn. Whatever is left is extra you can spend on the
    weekend and still average the planned deficit for the week. */
-const PIZZA_SLICE = 285, BEER = 150;   // cal: a slice of large pepperoni, a regular beer
+const PIZZA_SLICE = 285, BEER = 150;
+/* Days with no food logged but a known deficit (burned minus eaten), entered by hand.
+   Only used when the day has no real food data. */
+const BANK_SEED = { '2026-09-21':800, '2026-09-22':800 };   // cal: a slice of large pepperoni, a regular beer
 function weekBank(){
   const t=todayStr(), ws=weekStart(t), C=calib(), R=rmr(), days=[];
   let bank=0, known=0, past=0;
@@ -2249,6 +2255,7 @@ function weekBank(){
     if(d>t){ days.push({d,wkd,fut:true}); continue; }
     if(d===t){ const over=TODAY_E&&TODAY_E.eaten?-Math.min(0,TODAY_E.room):0; days.push({d,wkd,today:true,delta:-over,room:TODAY_E?TODAY_E.room:null}); continue; }
     past++;
+    if((!e||e.cal==null)&&BANK_SEED[d]!=null){ const delta=BANK_SEED[d]-DEFICIT; days.push({d,wkd,delta,seeded:true}); bank+=delta; known++; continue; }
     if(!e||e.cal==null){ days.push({d,wkd,nodata:true}); continue; }
     const burn=(R+ACT_TRUST*(e.burnA||0))*C.k, delta=(burn-DEFICIT)-e.cal;
     const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
@@ -2271,6 +2278,7 @@ function renderBank(){
     :'You’re over for the week. The weekend is off limits unless you make it up before Friday.';
   const t=W.days.find(x=>x.today);
   if(!W.weekend&&t&&t.delta<0) call+=' That already counts today being '+fmtN(-t.delta)+' over.';
+  const seeded=W.days.filter(x=>x.seeded).map(x=>dow(x.d));
   const warn=W.days.filter(x=>x.partial||x.noBurn).map(x=>dow(x.d)+(x.noBurn?' has no burn data':' was last synced before 8 PM'));
   el.innerHTML='<div class="td-head"><div><div class="td-big '+(pos?'green':'red')+'">'+sgn(v)+'<small>cal</small></div>'
       +'<div class="td-lbl">'+(W.weekend?'left for this weekend':'banked for the weekend')+'</div></div>'
@@ -2281,7 +2289,8 @@ function renderBank(){
       return '<div class="'+cls+'"><span>'+dow(x.d)+'</span><b>'+val+'</b></div>';}).join('')+'</div>'
     +'<div class="td-call" style="font-size:13.5px">'+call+'</div>'
     +'<div class="hint">Each day counts against its own target: that day’s burn minus '+fmtN(DEFICIT)+'. '
-      +'Run your Shortcut before bed so every day has its full food and burn.'
+      +'A day counts the last food and burn your Shortcut sent for it, so a morning run that also sends yesterday’s totals keeps every day complete.'
+      +(seeded.length?' '+seeded.join(' and ')+' entered by hand.':'')
       +(warn.length?' Might be off: '+warn.join(', ')+'.':'')+(W.past-W.known>0?' '+(W.past-W.known)+' day'+(W.past-W.known>1?'s':'')+' this week had no food logged and '+(W.past-W.known>1?'aren’t':'isn’t')+' counted.':'')+'</div>';
 }
 
