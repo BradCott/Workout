@@ -585,7 +585,7 @@ const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
    (session "Gymverse"), so Last time, exercise charts and the PR board use them.
    Placeholder 1 lb × 1 sets in Gymverse were dropped. Bump GV_U whenever lifts are
    added: an imported day is only replaced by a newer import, never over an in-app edit. */
-const GV_U = Date.parse('2026-09-23T16:10:00Z');   // fixed, never Date.now() — see SEED_U
+const GV_U = Date.parse('2026-09-23T16:20:00Z');   // fixed, never Date.now() — see SEED_U
 const GYMVERSE = {
   'Barbell Bench Press':{
     '2026-03-03':'155x15 175x12 185x8 185x8',
@@ -606,6 +606,40 @@ const GYMVERSE = {
     '2026-04-10':'20x15 25x12 30x8 30x10',
     '2026-05-13':'15x16 15x15 15x15',
     '2026-05-26':'15x16 17.5x16 17.5x16',
+  },
+  'Standing DB Press':{                    // Gymverse: Standing Dumbbell Overhead Press · lb per dumbbell
+    '2025-12-16':'45x10 50x9 50x9 50x7',
+    '2026-05-13':'30x15 35x13 35x11 35x9',
+    '2026-05-19':'35x13 35x13 35x10',
+    '2026-05-26':'30x15 35x14 35x13',
+    '2026-06-11':'30x17 25x15 25x15',
+  },
+  'Rope Pushdown':{                        // Gymverse: Standing Cable Tricep Pushdown, Rope
+    '2025-06-24':'90x15 90x12 70x15',
+    '2025-07-21':'80x16 90x15 90x15',
+    '2025-08-18':'100x10 100x5',
+    '2026-05-13':'70x15 90x14 90x13',
+    '2026-05-26':'80x15 90x15 90x15',
+  },
+  'Barbell Bent-Over Row':{                // Gymverse: Bent Over Barbell Row, Overhand Grip
+    '2025-08-26':'95x10 115x10 135x10',
+    '2025-09-05':'95x10 125x10 145x10 145x10',
+    '2025-09-12':'115x10 145x10 155x10 155x10',
+    '2025-09-23':'95x20 115x18 115x15 115x12',
+  },
+  'Neutral-Grip Lat Pulldown':{
+    '2025-09-12':'190x10 205x10 210x8 210x7',
+    '2025-09-23':'160x16 160x14 160x12 130x17',
+    '2025-10-01':'115x20 130x20',
+    '2025-10-16':'145x12 160x12 175x11',
+    '2025-10-24':'160x12 190x10 190x10',
+  },
+  'DB Row':{                               // Gymverse: Single Arm Dumbbell Row · lb per dumbbell
+    '2025-08-15':'60x12 65x12 65x10',
+    '2025-08-26':'70x8 70x10 70x12',
+    '2025-09-05':'70x12 75x10 75x10',
+    '2025-09-12':'75x10 80x10 80x9',
+    '2025-09-23':'55x18 55x10 55x15',
   },
 };
 
@@ -684,6 +718,7 @@ BK Ring Row: rg
 BK Ring Pull-Up: rg
 BK Lat Pulldown: cb
 BK Close-Grip Pulldown: cb
+BK Neutral-Grip Lat Pulldown: cb
 BK Straight-Arm Pulldown: cb
 BK Seated Cable Row: cb
 BK Single-Arm Cable Row: cb
@@ -968,6 +1003,11 @@ const EX_ALIAS = {
   'dumbell rdl':'Dumbbell RDL',             // typo in an early log
   'incline dumbbell bench press':'DB Incline Press',       // Gymverse names
   'standing dumbbell lateral raise':'Lateral Raise',
+  'standing dumbbell overhead press':'Standing DB Press',
+  'standing cable tricep pushdown, rope':'Rope Pushdown',
+  'bent over barbell row, overhand grip':'Barbell Bent-Over Row',
+  'neutral grip lat pulldown':'Neutral-Grip Lat Pulldown',
+  'single arm dumbbell row':'DB Row',
 };
 const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
 const normName = n=>canon(n).toLowerCase();
