@@ -2142,7 +2142,7 @@ function renderToday(){
   const el=$('todayCard'); if(!el) return;
   const t=todayStr(), e=live(t)||{}, now=new Date(), h=now.getHours()+now.getMinutes()/60;
   const C=calib(), R=rmr(), hrsLeft=Math.max(0,BEDTIME-h);
-  const act=e.burnA||0, burnNow=(R*h/24+ACT_TRUST*act)*C.k;
+  const act=e.burnA||0, restNow=R*h/24*C.k, actNow=ACT_TRUST*act*C.k, burnNow=restNow+actNow;   // split so resting and active read separately
   const burnEnd=(R+ACT_TRUST*(act+IDLE_ACTIVE_HR*hrsLeft))*C.k;
   const eaten=e.cal||0, target=burnEnd-DEFICIT, room=target-eaten, endDef=burnEnd-eaten;
   const proNeed=e.pro!=null?Math.max(0,T.proMin-e.pro):null;
@@ -2170,7 +2170,8 @@ function renderToday(){
       +'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+(endDef>=0?'−':'+')+fmtN(Math.abs(endDef))+'</div><div class="td-lbl">if you stop eating</div></div></div>'
     +'<div class="td-meter"><i style="width:'+pct(eaten)+'%;background:'+(room>=0?'var(--blue)':'var(--red)')+'"></i><b style="left:'+pct(target)+'%"></b></div>'
     +'<div class="chart-note" style="margin-top:2px"><span>Eaten vs. bedtime burn · line = target</span><span>'+fmtN(target)+' target</span></div>'
-    +'<div class="td-stats"><div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div><div><b>'+fmtN(burnEnd)+'</b><span>by bedtime</span></div></div>'
+    +'<div class="td-stats"><div><b>'+fmtN(restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(actNow)+'</b><span>active · watch '+fmtN(act)+'</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div>'
+      +'<div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(burnEnd)+'</b><span>burn by bedtime</span></div><div><b>'+fmtN(target)+'</b><span>eat target</span></div></div>'
     +'<div class="td-call">'+call+'</div>'
     +coachHtml
     +'<div class="hint">Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
