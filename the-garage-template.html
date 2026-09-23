@@ -1,6 +1,6 @@
 <title>The Sabatoge Garage</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Big+Shoulders+Stencil:wght@700;800&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Big+Shoulders+Stencil:wght@700;800&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Condensed:wght@600&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
     --bg:#0d0d0d;--surface:#161616;--card:#1e1e1e;--border:#2a2a2a;
@@ -11,17 +11,18 @@
   /* ── OPS look: navy dossier, cyan signal, stencil type. Switch in Export → Look,
      or set THEME in the config. Classic above is untouched. ── */
   :root[data-theme=ops]{
-    --bg:#070b12;--surface:#0d141f;--card:#121b29;--border:#1f2c3f;
-    --gold:#4fd8ff;--gold-dim:#0a2534;--white:#e6eef6;--muted:#6f8299;--faint:#29384d;
-    --disp:'Big Shoulders Stencil','Bebas Neue',sans-serif;--mono:'IBM Plex Mono',ui-monospace,monospace;
+    --bg:#121c2b;--surface:#1a2638;--card:#213047;--border:#314561;
+    --gold:#5ddcff;--gold-dim:#173e55;--white:#eef4fa;--muted:#93a6bd;--faint:#3b5070;
+    --disp:'Barlow Condensed','Bebas Neue',sans-serif;--stencil:'Big Shoulders Stencil','Bebas Neue',sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
   }
   :root[data-theme=ops] body{background:
-    linear-gradient(rgba(79,216,255,.035) 1px,transparent 1px) 0 0/100% 28px,
-    linear-gradient(90deg,rgba(79,216,255,.035) 1px,transparent 1px) 0 0/28px 100%,var(--bg)}
-  :root[data-theme=ops] header{background:rgba(7,11,18,.94);border-bottom-color:var(--gold-dim)}
+    linear-gradient(rgba(93,220,255,.05) 1px,transparent 1px) 0 0/100% 28px,
+    linear-gradient(90deg,rgba(93,220,255,.05) 1px,transparent 1px) 0 0/28px 100%,var(--bg)}
+  :root[data-theme=ops] header{background:rgba(18,28,43,.94);border-bottom-color:var(--gold-dim)}
   :root[data-theme=ops] .logo{display:table;margin:0 auto;opacity:1;color:#ff4d4d;border:1.5px solid #ff4d4d;border-radius:3px;
-    padding:2px 8px 1px;font-family:var(--mono);font-size:10px;letter-spacing:3px;transform:rotate(-2deg)}
-  :root[data-theme=ops] .hdr-title{font-weight:800;letter-spacing:1px;font-size:30px}
+    padding:2px 8px 1px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;transform:rotate(-2deg)}
+  :root[data-theme=ops] .hdr-title{font-family:var(--stencil);font-weight:800;letter-spacing:1px;font-size:30px}
   :root[data-theme=ops] .card{border-radius:6px;border-left:2px solid var(--gold-dim)}
   :root[data-theme=ops] .stat,:root[data-theme=ops] .day,:root[data-theme=ops] .td-stats div,:root[data-theme=ops] .ex{border-radius:4px}
   :root[data-theme=ops] .section-title::before{content:'// ';color:var(--gold)}
@@ -527,7 +528,7 @@
 /* ── CONFIG ── */
 /* ─────────── EDIT THIS BLOCK ─────────── */
 const GYM   = 'THE SABATOGE GARAGE';   // big title
-const OWNER = 'TOP SECRET SPIE APP';    // small line above it
+const OWNER = 'TOP SECRET WEIGHT LOSS CHEAT HACK';    // small line above it
 const T = { cal:2000, proMin:170, proMax:200, fatMax:70, carb:200 };  // daily targets
 const START_WEIGHT = 257;     // the weight you started at
 /* Energy balance: resting burn comes from these (Mifflin-St Jeor); leave age or
