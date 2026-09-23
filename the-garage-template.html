@@ -419,6 +419,8 @@
       <div><label class="f" for="fSession">Session</label><input id="fSession" list="sessNames" placeholder="Push, Upper…"></div>
     </div>
     <datalist id="sessNames"><option value="Push"><option value="Pull"><option value="Legs"><option value="Upper"><option value="Lower"><option value="Full Body"><option value="Arms"><option value="Conditioning"><option value="Office KB"></datalist>
+    <button class="btn btn-dark" id="adjBtn" style="display:none;margin-top:10px" onclick="openAdj()">Adjust with AI</button>
+    <div class="card" id="adjPanel" style="display:none;margin-top:8px"></div>
     <label class="f">Exercises · tap ✓ when a set's done and the rest timer starts</label>
     <div id="exList"></div>
     <button class="add-link" onclick="logAddEx()">+ Add exercise</button>
@@ -1420,7 +1422,7 @@ async function load(){
 
   const use = (window.claude && window.claude.use) ? window.claude.use.bind(window.claude) : null;
   if(!use) diag('artifactNs','no window.claude.use — not running as a published artifact');
-  if(use) use('sample').then(sm=>{ SAMPLE=sm||null; renderToday(); renderPlan(); }).catch(()=>{});
+  if(use) use('sample').then(sm=>{ SAMPLE=sm||null; renderToday(); renderPlan(); syncTog(); }).catch(()=>{});
   try{
     ART = use ? await use('artifact') : null;
     if(use) diag('artifactNs', ART?('resolved ['+Object.keys(ART).join(',')+']'):'null — capability not granted to this view');
@@ -2343,6 +2345,19 @@ function aiMic(){
     AI.rec=r; r.start(); aiRender();
   }catch(e){ AI.rec=null; toast('Mic isn’t available here, use the mic on your keyboard'); }
 }
+/* last session and best set of every lift you've logged, newest first */
+function aiHist(){
+  const seen={}, hist=[], t=todayStr();
+  sorted().reverse().forEach(d=>{ if(d>=t) return; const l=live(d).lift; if(!l) return;
+    (l.ex||[]).forEach(x=>{ const k=canon(x.name); if(seen[k]||!(x.sets||[]).some(performed)) return; seen[k]=1;
+      const ss=exSessions(k).filter(s=>s.d<t), last=ss[ss.length-1], pr=DB.prs[k];
+      if(last) hist.push('- '+k+': last '+last.d+' '+fmtSets(last.sets)+(pr?' | best '+pr.w+'x'+pr.r:'')); }); });
+  return hist.slice(0,45).join('\n');
+}
+/* the model's exercise list → the app's exercise rows */
+const aiEx = list=>(Array.isArray(list)?list:[]).filter(x=>x&&x.name).slice(0,12).map(x=>rowToEx({
+  name:String(x.name).trim(), n:String(Math.max(1,Math.min(8,parseInt(x.sets)||3))), r:String(x.reps==null?'':x.reps),
+  w:x.weight==null||x.weight===''||isNaN(Number(x.weight))?'':String(Number(x.weight)), rest:String(parseInt(x.rest)||restFor(x.name)), note:String(x.note||'')}));
 /* what the coach knows: you, today, recent training, the place, your numbers */
 function aiContext(){
   const t=todayStr(), loc=DB.locs[AI.loc], L=[];
@@ -2354,12 +2369,7 @@ function aiContext(){
     rec.push(i+' day'+(i>1?'s':'')+' ago: '+e.lift.ex.filter(x=>(x.sets||[]).some(performed)).map(x=>x.name).join(', ')); }
   if(live(t)&&live(t).hiit) rec.unshift('Today: HIIT class');
   L.push('RECENT TRAINING (last 10 days): '+(rec.length?'\n  '+rec.join('\n  '):'none logged'));
-  const seen={}, hist=[];
-  sorted().reverse().forEach(d=>{ const l=live(d).lift; if(!l) return;
-    (l.ex||[]).forEach(x=>{ const k=canon(x.name); if(seen[k]||!(x.sets||[]).some(performed)) return; seen[k]=1;
-      const ss=exSessions(k), last=ss[ss.length-1], pr=DB.prs[k];
-      if(last) hist.push('- '+k+': last '+last.d+' '+fmtSets(last.sets)+(pr?' | best '+pr.w+'x'+pr.r:'')); }); });
-  L.push('LIFT HISTORY (lb; dumbbell weights are per dumbbell; many are months old, so ease back in):\n'+hist.slice(0,45).join('\n'));
+  L.push('LIFT HISTORY (lb; dumbbell weights are per dumbbell; many are months old, so ease back in):\n'+aiHist());
   const names=libFilter('',AI.loc,'all').map(x=>x.name);
   L.push('EXERCISES POSSIBLE HERE: '+names.join('; '));
   return L.join('\n\n');
@@ -2388,9 +2398,7 @@ async function aiDraft(){
   const ctl=new AbortController(); AI.ctl=ctl; AI.busy=true; AI.msg='Thinking… usually 15–40 seconds.'; aiRender();
   try{
     const j=await SAMPLE.json(aiPrompt(),{signal:ctl.signal,cache:false,onText:()=>{ if(AI.msg.startsWith('Thinking')){ AI.msg='Writing it up…'; aiRender(); } }});
-    const ex=(Array.isArray(j&&j.ex)?j.ex:[]).filter(x=>x&&x.name).slice(0,12).map(x=>rowToEx({
-      name:String(x.name).trim(), n:String(Math.max(1,Math.min(8,parseInt(x.sets)||3))), r:String(x.reps==null?'':x.reps),
-      w:x.weight==null||x.weight===''||isNaN(Number(x.weight))?'':String(Number(x.weight)), rest:String(parseInt(x.rest)||restFor(x.name)), note:String(x.note||'')}));
+    const ex=aiEx(j&&j.ex);
     if(!ex.length) throw {code:'invalid_json'};
     AI.plan={kind:'lift',title:String(j.title||'AI workout').slice(0,60),sub:String(j.sub||(AI.mins+' min')).slice(0,90),loc:AI.loc,ex};
     AI.why=String(j.why||'').slice(0,400); AI.msg='';
@@ -2399,6 +2407,67 @@ async function aiDraft(){
 }
 function aiLoad(){ const p=AI.plan; if(!p) return; closeAI(); loadWorkout(clone(p)); }
 function aiSave(){ const p=AI.plan; if(!p) return; DB.tpl[newId()]=Object.assign(clone(p),{u:Date.now()}); dataTouch(); toast('Saved “'+p.title+'” to Workouts'); }
+
+/* ── ADJUST MID-WORKOUT ── tell the coach what's wrong ("no cable machine free",
+   "shoulder's cranky", "20 minutes left") and it rewrites the exercises you
+   haven't started. Anything with a set done stays exactly as logged. */
+let ADJ={open:false,note:'',busy:false,ctl:null,plan:null,say:'',msg:''};
+const exStarted = x=>(x.sets||[]).some(s=>s.done||performed(s));
+function openAdj(){ ADJ.open=true; ADJ.plan=null; ADJ.msg=''; syncTog(); adjRender(); setTimeout(()=>{ const n=$('adjNote'); n&&n.focus(); },50); }
+function closeAdj(){ if(ADJ.ctl) ADJ.ctl.abort(); ADJ.open=false; ADJ.plan=null; $('adjPanel').style.display='none'; syncTog(); }
+function adjRender(){
+  const el=$('adjPanel'); el.style.display=ADJ.open?'block':'none'; if(!ADJ.open) return;
+  let h='<div style="font-weight:700">What needs to change?</div>'
+    +'<textarea id="adjNote" rows="3" style="margin-top:8px" placeholder="“Can’t do the leg press, it’s taken.” “Swap anything overhead, shoulder hurts.” “Only 20 minutes left.”">'+esc(ADJ.note)+'</textarea>'
+    +'<div class="hint">Tap the mic on your keyboard to talk. Exercises you’ve started stay as they are.</div>'
+    +'<div class="actions">'+(ADJ.busy?'<button class="btn btn-dark sm" onclick="ADJ.ctl&&ADJ.ctl.abort()">Stop</button>'
+      :'<button class="btn btn-gold sm" onclick="adjDraft()">'+(ADJ.plan?'Try again':'Adjust')+'</button>')
+    +'<button class="btn btn-dark sm" onclick="closeAdj()">Close</button></div>'
+    +(ADJ.msg?'<div class="hint">'+esc(ADJ.msg)+'</div>':'');
+  if(ADJ.plan){
+    h+='<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">'+(ADJ.say?'<div class="ai-why">'+esc(ADJ.say)+'</div>':'')
+      +'<div class="mini">Rest of the workout</div>'+(exLines({ex:ADJ.plan})||'<div class="hint">Nothing left: you’re done.</div>')
+      +'<div class="actions"><button class="btn btn-gold sm" onclick="adjApply()">Use this</button></div></div>';
+  }
+  el.innerHTML=h;
+  $('adjNote').addEventListener('input',ev=>{ ADJ.note=ev.target.value; });
+}
+function adjPrompt(done,todo,locId){
+  const loc=DB.locs[locId], fmt=x=>'- '+x.name+': '+(x.sets||[]).map(s=>(s.done||performed(s)?'':'target ')+(Number(s.w)>0?s.w:'BW')+'x'+(s.r===''?'?':s.r)).join(', ');
+  return 'You are a strength coach adjusting a workout the athlete is doing RIGHT NOW.\n\n'
+    +'ATHLETE: male, 41, 6\'6", '+latestWeight()+' lb, cutting.\n'
+    +'PLACE: '+(loc?loc.name+'. Equipment: '+((loc.eq||[]).map(e=>EQUIP[e]||e).join(', ')||'bodyweight only'):'unknown gym')+'.\n\n'
+    +'ALREADY DONE (do not change):\n'+(done.length?done.map(fmt).join('\n'):'nothing yet')+'\n\n'
+    +'STILL TO DO (this is what you rewrite):\n'+(todo.length?todo.map(fmt).join('\n'):'nothing')+'\n\n'
+    +'WHAT THE ATHLETE SAYS: "'+ADJ.note.trim().slice(0,600)+'"\n\n'
+    +'LIFT HISTORY:\n'+aiHist()+'\n\n'
+    +'EXERCISES POSSIBLE HERE: '+libFilter('',locId||'all','all').map(x=>x.name).join('; ')+'\n\n'
+    +'RULES: Rewrite only the STILL TO DO list so it honours what the athlete says. Keep exercises that still work unchanged; '
+    +'swap ones that can\'t be done for the closest alternative hitting the same muscles; drop or shorten if time is short; '
+    +'treat pain as a hard limit. Don\'t repeat muscles already worked hard unless asked. Use names from the list exactly. '
+    +'Weights in lb (per dumbbell), null for bodyweight, based on history where possible.\n\n'
+    +'Reply with only JSON: {"say":"one short sentence on what you changed","ex":[{"name":"...","sets":3,"reps":"10","weight":50,"rest":60,"note":""}]}';
+}
+async function adjDraft(){
+  if(!SAMPLE||ADJ.busy) return;
+  if(!ADJ.note.trim()){ toast('Say what needs to change first'); return; }
+  const cur=readForm(), all=(cur.lift&&cur.lift.ex)||[], done=all.filter(exStarted), todo=all.filter(x=>!exStarted(x));
+  const ctl=new AbortController(); ADJ.ctl=ctl; ADJ.busy=true; ADJ.msg='Thinking… usually 10–30 seconds.'; adjRender();
+  try{
+    const j=await SAMPLE.json(adjPrompt(done,todo,$('fLoc').value||AI.loc),{signal:ctl.signal,cache:false});
+    if(!j||!Array.isArray(j.ex)) throw {code:'invalid_json'};
+    ADJ.plan=aiEx(j.ex); ADJ.say=String(j.say||'').slice(0,300); ADJ.msg='';
+  }catch(e){ ADJ.msg=e&&e.code==='cancelled'?'Stopped.':aiErr(e&&e.code); }
+  finally{ ADJ.busy=false; ADJ.ctl=null; adjRender(); }
+}
+function adjApply(){
+  if(!ADJ.plan) return;
+  const cur=readForm(), keep=((cur.lift&&cur.lift.ex)||[]).filter(exStarted);
+  $('exList').innerHTML='';
+  keep.forEach(x=>addEx({name:x.name,rx:x.rx||'',note:x.note||'',rest:x.rest||90,sets:x.sets.map(s=>({w:s.w,r:s.r,done:!!s.done,pre:!!s.pre}))}));
+  ADJ.plan.forEach(x=>addEx({name:x.name,rx:x.rx||'',note:x.note||'',rest:x.rest||90,sets:x.sets.map(s=>({w:s.w,r:s.r!=null?s.r:'',done:false,pre:true}))}));
+  autoSave(); ADJ.note=''; closeAdj(); toast('Workout updated');
+}
 
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
@@ -2410,9 +2479,11 @@ function syncTog(){
   $('tWalk').classList.toggle('on',F.walk); $('walkFields').style.display=F.walk?'grid':'none';
   $('tHiit').classList.toggle('on',F.hiit); $('hiitFields').style.display=F.hiit?'grid':'none';
   $('tLift').classList.toggle('on',F.lift); $('liftFields').style.display=F.lift?'block':'none';
+  $('adjBtn').style.display=SAMPLE&&F.lift&&!ADJ.open?'block':'none';
 }
 function openDay(d){ loadForm(d); go('log',document.querySelectorAll('nav button')[2]); }
 function loadForm(d){
+  if(ADJ.open) closeAdj();   // a half-finished adjustment belongs to the day it was for
   flushSave();          // a pending edit belongs to the day we're leaving
   loading=true;
   formDate=d;
