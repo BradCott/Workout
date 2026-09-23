@@ -585,7 +585,7 @@ const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
    (session "Gymverse"), so Last time, exercise charts and the PR board use them.
    Placeholder 1 lb × 1 sets in Gymverse were dropped. Bump GV_U whenever lifts are
    added: an imported day is only replaced by a newer import, never over an in-app edit. */
-const GV_U = Date.parse('2026-09-23T16:00:00Z');   // fixed, never Date.now() — see SEED_U
+const GV_U = Date.parse('2026-09-23T16:10:00Z');   // fixed, never Date.now() — see SEED_U
 const GYMVERSE = {
   'Barbell Bench Press':{
     '2026-03-03':'155x15 175x12 185x8 185x8',
@@ -593,6 +593,19 @@ const GYMVERSE = {
     '2026-05-19':'135x20 155x17 155x15 155x11',
     '2026-05-26':'95x15 115x15 115x15',
     '2026-06-11':'95x15 135x15 135x15 135x15',
+  },
+  'DB Incline Press':{                     // Gymverse: Incline Dumbbell Bench Press · lb per dumbbell
+    '2025-08-18':'60x12 65x8 65x8',
+    '2026-01-14':'55x15 55x13 55x6',
+    '2026-01-23':'55x15 55x15 50x10',
+    '2026-03-03':'50x15 50x11',
+  },
+  'Lateral Raise':{                        // Gymverse: Standing Dumbbell Lateral Raise · lb per dumbbell
+    '2025-12-16':'22.5x15 25x12 25x13',
+    '2026-03-09':'25x15 25x15 25x15 25x14',
+    '2026-04-10':'20x15 25x12 30x8 30x10',
+    '2026-05-13':'15x16 15x15 15x15',
+    '2026-05-26':'15x16 17.5x16 17.5x16',
   },
 };
 
@@ -953,6 +966,8 @@ const EX_ALIAS = {
   'reverse lunges':'DB Reverse Lunge',      // logged Aug 25, renamed in the Sep 21 plan
   'calf raise':'Barbell Calf Raise',        // same movement, plan is more specific now
   'dumbell rdl':'Dumbbell RDL',             // typo in an early log
+  'incline dumbbell bench press':'DB Incline Press',       // Gymverse names
+  'standing dumbbell lateral raise':'Lateral Raise',
 };
 const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
 const normName = n=>canon(n).toLowerCase();
