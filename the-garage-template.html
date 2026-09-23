@@ -274,6 +274,13 @@
   .co .ct b{display:block;font-size:13.5px}
   .co .ct span{font-size:11.5px;color:var(--muted);line-height:1.4}
   .co button{flex:none;background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:700}
+  /* AI coach */
+  #aiNote{min-height:84px;resize:vertical;font-size:15px;line-height:1.4}
+  .ai-row{display:flex;gap:6px;align-items:center;margin-top:10px}
+  .ai-row .btn{flex:1}
+  .ai-mic{flex:none!important;width:52px;padding:14px 0}
+  .ai-mic.on{background:var(--red);border-color:var(--red);color:#fff}
+  .ai-why{font-size:13px;line-height:1.5;margin:6px 0 4px}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -495,6 +502,11 @@
 <div class="sheet" id="edWrap">
   <div class="sheet-head"><button class="add-link" onclick="closeEditor()">Cancel</button><b id="edTitle">Workout</b><button class="add-link" style="text-align:right" onclick="edSave()">Save</button></div>
   <div class="sheet-body" id="edBody"></div>
+</div>
+<!-- AI COACH -->
+<div class="sheet" id="aiWrap">
+  <div class="sheet-head"><button class="add-link" onclick="closeAI()">Close</button><b>AI coach</b><span style="min-width:56px"></span></div>
+  <div class="sheet-body" id="aiBody"></div>
 </div>
 <!-- EXERCISE PICKER / CHOOSER -->
 <div class="sheet" id="pkWrap">
@@ -1136,6 +1148,7 @@ function fmtSets(sets){
 let DB = { days:{}, prs:{}, plan:null, planU:0 };
 let ART = null;              // artifact capability namespace, once resolved
 let DL = null;               // downloads capability, for Download JSON
+let SAMPLE = null;           // ask-Claude capability, for the AI coach
 let syncState = 'local';     // local | ok | busy | err
 let cloudTried = false;
 
@@ -1397,6 +1410,7 @@ async function load(){
 
   const use = (window.claude && window.claude.use) ? window.claude.use.bind(window.claude) : null;
   if(!use) diag('artifactNs','no window.claude.use — not running as a published artifact');
+  if(use) use('sample').then(sm=>{ SAMPLE=sm||null; renderToday(); renderPlan(); }).catch(()=>{});
   try{
     ART = use ? await use('artifact') : null;
     if(use) diag('artifactNs', ART?('resolved ['+Object.keys(ART).join(',')+']'):'null — capability not granted to this view');
@@ -1771,7 +1785,8 @@ function viewTpl(){
   const locs=liveLocs();
   let ids=liveMap(DB.tpl); if(TR.tplLoc!=='all') ids=ids.filter(id=>DB.tpl[id].loc===TR.tplLoc);
   ids.sort((a,b)=>(DB.tpl[a].title||'').localeCompare(DB.tpl[b].title||''));
-  let h='<button class="btn btn-gold" onclick="openEditor(\'tpl\',null,{loc:TR.tplLoc!==\'all\'?TR.tplLoc:defaultLoc()})">+ New workout</button>'
+  let h=(SAMPLE?'<button class="btn btn-dark" style="margin-bottom:8px" onclick="openAI()">Draft a workout with AI</button>':'')
+    +'<button class="btn btn-gold" onclick="openEditor(\'tpl\',null,{loc:TR.tplLoc!==\'all\'?TR.tplLoc:defaultLoc()})">+ New workout</button>'
     +'<div class="chips"><button class="chip'+(TR.tplLoc==='all'?' on':'')+'" onclick="TR.tplLoc=\'all\';renderPlan()">All places</button>'
     +locs.map(l=>'<button class="chip'+(TR.tplLoc===l.id?' on':'')+'" onclick="TR.tplLoc=\''+l.id+'\';renderPlan()">'+esc(l.name)+'</button>').join('')+'</div>';
   if(!ids.length) return h+'<div class="empty">No saved workouts here yet. Build one, or save a day from your Week.</div>';
@@ -2153,12 +2168,6 @@ function coachItems(e,room,C){
     const sets=(plan.ex||[]).reduce((a,x)=>a+(x.sets||[]).length,0), m=Math.max(25,Math.round(sets*2.5));
     out.push({i:'PLAN',t:'Today’s plan: '+(plan.title||'Workout')+(locName(plan.loc)?' @ '+locName(plan.loc):''),
       s:'~'+m+' min · burns ~'+fmtN(m*rates.lift)+' cal',b:'Start',fn:'loadPlanDay(\''+t+'\')'});
-  } else if(!lifted && (rec.last==null||rec.last>=2) && !(plan&&plan.kind==='rest')){
-    const tpls=liveMap(DB.tpl).map(id=>({id,p:DB.tpl[id]})).map(o=>({...o,sc:new Set((o.p.ex||[]).map(x=>{const f=findEx(x.name);return f&&BIG[f.m];}).filter(g=>g&&rec.fresh.includes(g))).size})).sort((a,b)=>b.sc-a.sc);
-    const best=tpls[0]&&tpls[0].sc?tpls[0]:null;
-    out.push({i:'LIFT',t:best?'Lift: '+(best.p.title||'Workout'):'Get a lift in',
-      s:(rec.last==null?'No lifts logged yet':'Last lift '+rec.last+' days ago')+' · fresh: '+rec.fresh.join(', '),
-      b:best?'Load':null,fn:best?'loadTpl(\''+best.id+'\')':''});
   }
   if(gap>=60){
     const legs=!!rec.hit.Legs, opts=[['WALK','Walk',rates.walk,'easy on recovery'+(rates.walked?'':' · ~3.2 mph')]];
@@ -2196,6 +2205,8 @@ function renderToday(){
   const noBurn=e.cal&&!act?' · No burn data, add Active Energy to your Shortcut':'';
   const pct=v=>Math.max(0,Math.min(100,v/Math.max(1,burnEnd)*100));
   const items=coachItems(e,room,C);
+  TODAY_E={room,burnEnd,eaten};
+  if(SAMPLE && !didLift(e.lift)) items.unshift({i:'AI',t:'Draft today’s lift with AI',s:'Say how you feel or what you want: “knee hurts, no lunges”, “huge arms today”',b:'Draft',fn:'openAI()'});
   const coachHtml=items.length?'<div class="coach">'+items.map(it=>'<div class="co"><div class="ci">'+it.i+'</div><div class="ct"><b>'+esc(it.t)+'</b><span>'+esc(it.s)+'</span></div>'+(it.b?'<button onclick="'+it.fn+'">'+it.b+'</button>':'')+'</div>').join('')+'</div>':'';
   if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
     el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
@@ -2214,6 +2225,112 @@ function renderToday(){
     +'<div class="hint">Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
       +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
 }
+
+/* ── AI COACH ── drafts one session from your history, recovery, the place's
+   equipment and whatever you tell it ("knee hurts, no lunges", "huge arms today").
+   Uses the viewer's own Claude via the `sample` capability; nothing is saved until
+   you tap Load or Save. */
+let TODAY_E=null;
+let AI={loc:'',mins:45,note:'',busy:false,plan:null,why:'',msg:'',ctl:null,rec:null};
+try{ const j=JSON.parse(localStorage.getItem('garage:ai')||'null'); if(j){ AI.loc=j.loc||''; AI.mins=j.mins||45; } }catch(e){}
+const AI_MINS=[30,45,60,75];
+function openAI(){
+  if(!AI.loc||!locName(AI.loc)) AI.loc=defaultLoc();
+  $('aiWrap').classList.add('on'); $('aiWrap').scrollTop=0; document.body.style.overflow='hidden'; aiRender();
+}
+function closeAI(){ if(AI.ctl) AI.ctl.abort(); aiMicStop(); $('aiWrap').classList.remove('on'); document.body.style.overflow=''; }
+function aiPick(k,v){ AI[k]=v; try{ localStorage.setItem('garage:ai',JSON.stringify({loc:AI.loc,mins:AI.mins})); }catch(e){} aiRender(); }
+const hasMic=()=>!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+function aiRender(){
+  const b=$('aiBody'); if(!b) return;
+  let h='<label class="f">Where</label><div class="chips">'+liveLocs().map(l=>'<button class="chip'+(AI.loc===l.id?' on':'')+'" onclick="aiPick(\'loc\',\''+l.id+'\')">'+esc(l.name)+'</button>').join('')+'</div>'
+    +'<label class="f">Time</label><div class="chips">'+AI_MINS.map(m=>'<button class="chip'+(AI.mins===m?' on':'')+'" onclick="aiPick(\'mins\','+m+')">'+m+' min</button>').join('')+'</div>'
+    +'<label class="f" for="aiNote">Anything I should know?</label>'
+    +'<textarea id="aiNote" placeholder="“My knee hurts, no lunges.” “I want huge arms today.” “Tired, keep it light.”">'+esc(AI.note)+'</textarea>'
+    +'<div class="hint">Tip: tap the microphone on your keyboard to talk instead of typing.</div>'
+    +'<div class="ai-row">'+(hasMic()?'<button class="btn btn-dark ai-mic'+(AI.rec?' on':'')+'" title="Talk" onclick="aiMic()">'+(AI.rec?'■':'🎤')+'</button>':'')
+    +(AI.busy?'<button class="btn btn-dark" onclick="AI.ctl&&AI.ctl.abort()">Stop</button>'
+             :'<button class="btn btn-gold" onclick="aiDraft()">'+(AI.plan?'Redo with this note':'Draft my workout')+'</button>')+'</div>'
+    +(AI.msg?'<div class="hint" style="margin-top:10px">'+esc(AI.msg)+'</div>':'');
+  if(AI.plan){ const p=AI.plan;
+    h+='<div class="card" style="margin-top:14px"><div style="font-weight:800;font-size:17px">'+esc(p.title)+'</div>'
+      +'<div class="hint" style="margin-top:2px">'+esc(p.sub)+'</div>'
+      +(AI.why?'<div class="ai-why">'+esc(AI.why)+'</div>':'')+exLines(p)
+      +'<div class="actions"><button class="btn btn-gold sm" onclick="aiLoad()">Load into today</button>'
+      +'<button class="btn btn-dark sm" onclick="aiSave()">Save to Workouts</button></div></div>';
+  }
+  b.innerHTML=h;
+  $('aiNote').addEventListener('input',ev=>{ AI.note=ev.target.value; });
+}
+function aiMicStop(){ if(AI.rec){ try{ AI.rec.stop(); }catch(e){} AI.rec=null; } }
+function aiMic(){
+  if(AI.rec){ aiMicStop(); aiRender(); return; }
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR) return;
+  try{
+    const r=new SR(); r.lang='en-US'; r.interimResults=false; r.continuous=false;
+    const base=AI.note.trim();
+    r.onresult=ev=>{ const t=[...ev.results].map(x=>x[0].transcript).join(' ').trim(); AI.note=(base?base+' ':'')+t; };
+    r.onerror=()=>{ toast('Mic isn’t available here, use the mic on your keyboard'); };
+    r.onend=()=>{ AI.rec=null; aiRender(); };
+    AI.rec=r; r.start(); aiRender();
+  }catch(e){ AI.rec=null; toast('Mic isn’t available here, use the mic on your keyboard'); }
+}
+/* what the coach knows: you, today, recent training, the place, your numbers */
+function aiContext(){
+  const t=todayStr(), loc=DB.locs[AI.loc], L=[];
+  L.push('ATHLETE: male, 41, 6\'6", '+latestWeight()+' lb. Cutting at '+GOAL_LBWK+' lb/week, so the goal is keeping strength and muscle while in a deficit.');
+  if(TODAY_E&&TODAY_E.eaten) L.push('TODAY SO FAR: '+(TODAY_E.room>=0?Math.round(TODAY_E.room)+' cal under target':Math.round(-TODAY_E.room)+' cal OVER target (a short conditioning finisher helps)')+'.');
+  L.push('PLACE: '+(loc?loc.name:'Anywhere')+'. Equipment: '+(loc&&loc.eq&&loc.eq.length?loc.eq.map(e=>EQUIP[e]||e).join(', '):'bodyweight only')+'.');
+  const rec=[];
+  for(let i=1;i<=10;i++){ const d=addDays(t,-i), e=live(d); if(!e||!didLift(e.lift)) continue;
+    rec.push(i+' day'+(i>1?'s':'')+' ago: '+e.lift.ex.filter(x=>(x.sets||[]).some(performed)).map(x=>x.name).join(', ')); }
+  if(live(t)&&live(t).hiit) rec.unshift('Today: HIIT class');
+  L.push('RECENT TRAINING (last 10 days): '+(rec.length?'\n  '+rec.join('\n  '):'none logged'));
+  const seen={}, hist=[];
+  sorted().reverse().forEach(d=>{ const l=live(d).lift; if(!l) return;
+    (l.ex||[]).forEach(x=>{ const k=canon(x.name); if(seen[k]||!(x.sets||[]).some(performed)) return; seen[k]=1;
+      const ss=exSessions(k), last=ss[ss.length-1], pr=DB.prs[k];
+      if(last) hist.push('- '+k+': last '+last.d+' '+fmtSets(last.sets)+(pr?' | best '+pr.w+'x'+pr.r:'')); }); });
+  L.push('LIFT HISTORY (lb; dumbbell weights are per dumbbell; many are months old, so ease back in):\n'+hist.slice(0,45).join('\n'));
+  const names=libFilter('',AI.loc,'all').map(x=>x.name);
+  L.push('EXERCISES POSSIBLE HERE: '+names.join('; '));
+  return L.join('\n\n');
+}
+function aiPrompt(){
+  return 'You are a strength coach writing ONE gym session for today.\n\n'+aiContext()
+    +'\n\nSESSION LENGTH: '+AI.mins+' minutes including a short warm-up (budget about 2.5 min per working set with rest).'
+    +'\nWHAT THE ATHLETE SAYS TODAY: '+(AI.note.trim()?'"'+AI.note.trim().slice(0,600)+'"':'(nothing, use your judgement)')
+    +'\n\nRULES: Follow what the athlete says above all else; treat any pain or injury as a hard limit and avoid movements that load it. '
+    +'Otherwise favour muscle groups not trained in the last 2 days. Use only exercises from the list above, spelled exactly as listed. '
+    +'Prefer exercises with history and set weights from it: a small progression if recent, lighter if old; estimate conservatively for new ones. '
+    +'Heaviest compound first. Weights in lb (per dumbbell for dumbbell moves), null for bodyweight.'
+    +'\n\nReply with only JSON of this shape: {"title":"short name","sub":"one line, e.g. 45 min · biceps + triceps","why":"1-2 sentences on why this session","ex":[{"name":"EZ Bar Curl","sets":4,"reps":"10","weight":70,"rest":60,"note":"short cue or empty"}]}';
+}
+function aiErr(c){
+  return c==='not_granted'||c==='sampling_disabled'||c==='not_declared'||c==='capability_disabled'||c==='capability_removed'?'AI isn’t available in this view.'
+    :c==='rate_limited'?'Too many requests right now, try again in a minute.'
+    :c==='session_expired'?'Sign in to Claude again, then retry.'
+    :c==='refused'?'The coach couldn’t answer that. Try rewording your note.'
+    :c==='invalid_json'||c==='empty_completion'?'The answer came back garbled. Tap Draft again.'
+    :'Something went wrong. Tap Draft again.';
+}
+async function aiDraft(){
+  if(!SAMPLE||AI.busy) return;
+  aiMicStop();
+  const ctl=new AbortController(); AI.ctl=ctl; AI.busy=true; AI.msg='Thinking… usually 15–40 seconds.'; aiRender();
+  try{
+    const j=await SAMPLE.json(aiPrompt(),{signal:ctl.signal,cache:false,onText:()=>{ if(AI.msg.startsWith('Thinking')){ AI.msg='Writing it up…'; aiRender(); } }});
+    const ex=(Array.isArray(j&&j.ex)?j.ex:[]).filter(x=>x&&x.name).slice(0,12).map(x=>rowToEx({
+      name:String(x.name).trim(), n:String(Math.max(1,Math.min(8,parseInt(x.sets)||3))), r:String(x.reps==null?'':x.reps),
+      w:x.weight==null||x.weight===''||isNaN(Number(x.weight))?'':String(Number(x.weight)), rest:String(parseInt(x.rest)||restFor(x.name)), note:String(x.note||'')}));
+    if(!ex.length) throw {code:'invalid_json'};
+    AI.plan={kind:'lift',title:String(j.title||'AI workout').slice(0,60),sub:String(j.sub||(AI.mins+' min')).slice(0,90),loc:AI.loc,ex};
+    AI.why=String(j.why||'').slice(0,400); AI.msg='';
+  }catch(e){ AI.msg=e&&e.code==='cancelled'?'Stopped.':aiErr(e&&e.code); }
+  finally{ AI.busy=false; AI.ctl=null; aiRender(); }
+}
+function aiLoad(){ const p=AI.plan; if(!p) return; closeAI(); loadWorkout(clone(p)); }
+function aiSave(){ const p=AI.plan; if(!p) return; DB.tpl[newId()]=Object.assign(clone(p),{u:Date.now()}); dataTouch(); toast('Saved “'+p.title+'” to Workouts'); }
 
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
