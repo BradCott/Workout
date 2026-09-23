@@ -585,7 +585,7 @@ const SEED_PLAN_U = Date.parse(SEED_PLAN.weekOf+'T00:00:00Z');
    (session "Gymverse"), so Last time, exercise charts and the PR board use them.
    Placeholder 1 lb × 1 sets in Gymverse were dropped. Bump GV_U whenever lifts are
    added: an imported day is only replaced by a newer import, never over an in-app edit. */
-const GV_U = Date.parse('2026-09-23T16:20:00Z');   // fixed, never Date.now() — see SEED_U
+const GV_U = Date.parse('2026-09-23T16:30:00Z');   // fixed, never Date.now() — see SEED_U
 const GYMVERSE = {
   'Barbell Bench Press':{
     '2026-03-03':'155x15 175x12 185x8 185x8',
@@ -640,6 +640,37 @@ const GYMVERSE = {
     '2025-09-05':'70x12 75x10 75x10',
     '2025-09-12':'75x10 80x10 80x9',
     '2025-09-23':'55x18 55x10 55x15',
+  },
+  'EZ Bar Curl':{                          // Gymverse: EZ Bar Standing Barbell Curl, Narrow Grip
+    '2024-10-17':'50x15 60x14',
+    '2024-10-28':'60x12 60x12 60x11',
+    '2024-11-07':'60x12 60x10',
+    '2024-12-16':'60x10 70x10 70x9',
+  },
+  'Lat Pulldown':{                         // Gymverse: Overhand Grip Lat Pulldown
+    '2026-05-14':'135x15 120x14 120x14',
+    '2026-05-20':'130x16 145x14 145x13 100x22',
+    '2026-05-28':'130x17 145x15 145x11 145x12',
+    '2026-06-18':'115x15 130x15 145x12',
+  },
+  'Dumbbell RDL':{                         // Gymverse: Dumbbell Romanian Deadlift · lb per dumbbell
+    '2026-05-19':'40x15 45x15',
+    '2026-06-08':'40x15 45x15 50x15 50x12',
+    '2026-06-25':'45x15 50x15 55x15',
+    '2026-06-30':'50x15 55x15 60x15',
+    '2026-07-20':'50x15 55x12 55x12 55x12',
+  },
+  'Leg Press':{
+    '2026-06-08':'180x20 270x20 270x20 270x16',
+    '2026-06-16':'180x20 270x20 270x20',
+    '2026-06-25':'180x20 270x20 270x20',
+    '2026-06-30':'180x20 270x20 320x20',
+  },
+  'Seated Leg Curl':{                      // Gymverse: Seated Leg Curl Machine
+    '2026-03-04':'180x15 200x15 220x12 220x10',
+    '2026-05-11':'160x18 180x16 180x15',
+    '2026-06-08':'180x18 200x16',
+    '2026-07-20':'180x15 220x12',
   },
 };
 
@@ -1008,6 +1039,10 @@ const EX_ALIAS = {
   'bent over barbell row, overhand grip':'Barbell Bent-Over Row',
   'neutral grip lat pulldown':'Neutral-Grip Lat Pulldown',
   'single arm dumbbell row':'DB Row',
+  'ez bar standing barbell curl, narrow grip':'EZ Bar Curl',
+  'overhand grip lat pulldown':'Lat Pulldown',
+  'dumbbell romanian deadlift':'Dumbbell RDL',
+  'seated leg curl machine':'Seated Leg Curl',
 };
 const canon = n=>{const t=String(n||'').trim(); return EX_ALIAS[t.toLowerCase()]||t;};
 const normName = n=>canon(n).toLowerCase();
