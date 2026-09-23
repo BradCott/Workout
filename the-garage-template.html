@@ -1843,7 +1843,9 @@ $('hkIn').addEventListener('paste',()=>setTimeout(()=>applyHealth(),0));   // pa
    Only letters, digits . _ ~ - survive in the link, hence this compact form.
    Applied once per distinct link, after the synced data has loaded. */
 function hashHealthText(){
-  const h=decodeURIComponent((location.hash||'').replace(/^#/,''));
+  let h=(location.hash||'').replace(/^#/,'');
+  try{ h=decodeURIComponent(h); }catch(e){}
+  h=h.replace(/\s+/g,'').replace(/,/g,'').replace(/(lb|lbs|kcal|cal|g)(?=[_~]|$)/gi,'');   // tolerate spaces, commas, units
   if(!/^h[_~]/i.test(h)) return null;
   const L=[];
   h.split(/[_~]/).slice(1).forEach(t=>{
@@ -1854,7 +1856,10 @@ function hashHealthText(){
   return L.length?{key:h,text:L.join('\n')}:null;
 }
 function applyHashHealth(){
-  const r=hashHealthText(); if(!r) return;
+  const raw=location.hash||'';
+  if(raw && $('hkStatus')) $('hkStatus').textContent='Link received: '+raw.slice(0,120);
+  const r=hashHealthText();
+  if(!r){ if(raw) toast('Link had no Health numbers'); return; }
   let last=null; try{ last=localStorage.getItem('garage:hk:last'); }catch(e){}
   if(last===r.key) return;                                  // this exact link was already applied
   try{ localStorage.setItem('garage:hk:last',r.key); }catch(e){}
