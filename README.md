@@ -9,6 +9,19 @@ with no build step and no dependencies.
 plan reaches the live app, the Sunday review method, and how to republish without wiping
 the log. `GARAGESETUP.md` is the original, shorter setup note.
 
+## Today card (Home)
+
+Energy balance for the day, from the Health Shortcut:
+- **Burned:** resting burn for the whole day plus Apple Health active energy at 85%, projected to `BEDTIME`.
+  Resting burn uses `ME` (age, height, sex) with Mifflin-St Jeor, or ~8.2 cal per lb until those are set.
+  The watch comes off at night, so resting burn is estimated rather than read from Health.
+- **Target:** `GOAL_LBWK` × 3,500 / 7 cal under the burn (2 lb/week = 1,000/day).
+- **Calibration:** after 14+ days of food and burn, plus 8+ weigh-ins over 2+ weeks, burn is scaled
+  (0.8–1.2) so the estimated deficit matches the actual weight trend.
+- **Coach:** today's planned lift, or a saved workout that hits muscles not trained in 3 days.
+  If you're over target, it gives cardio options sized to the gap (max 60 min each).
+  Those use your own Peloton output and walk pace once logged.
+
 ## Train tab
 
 - **Week**: the 7-day plan. Build or edit any day, drop in a saved workout, load a day into today, or roll the plan to next week. In-app edits outrank the seeded `SEED_PLAN`.
@@ -31,5 +44,5 @@ Never set `SEED_U` or `SEED_PLAN_U` to `Date.now()`, because that causes an endl
 
 The Log tab takes weight and macros from Apple Health, e.g. MyFitnessPal. Setup: [`HEALTH-SHORTCUT.md`](HEALTH-SHORTCUT.md).
 
-At the top of the main `<script>`: `GYM`, `OWNER`, `T` (daily targets), `START_WEIGHT`,
+At the top of the main `<script>`: `GYM`, `OWNER`, `T` (daily targets), `START_WEIGHT`, `ME`, `GOAL_LBWK`, `BEDTIME`,
 `TRAVEL_CAL` (higher calorie caps for trips), `SEED_PRS` (lifts from before the app) and `SEED_PLAN`.

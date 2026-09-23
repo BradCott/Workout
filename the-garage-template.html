@@ -229,6 +229,28 @@
   .mini{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin:8px 0 3px}
   .checkline{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--white);margin-top:12px}
   .checkline input{width:auto}
+  /* Today: energy balance + coach */
+  .td-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+  .td-big{font-family:'Bebas Neue',sans-serif;font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
+  .td-big small{font-family:'Inter',sans-serif;font-size:12px;color:var(--muted);margin-left:4px;letter-spacing:0}
+  .td-big.green{color:var(--green)}.td-big.gold{color:var(--gold)}.td-big.red{color:var(--red)}
+  .td-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+  .td-meter{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:12px 0 4px;position:relative}
+  .td-meter i{position:absolute;top:0;bottom:0;left:0;border-radius:4px}
+  .td-meter b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--white)}
+  .td-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+  .td-stats div{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center}
+  .td-stats b{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+  .td-stats span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .td-call{font-size:14px;font-weight:600;line-height:1.45;margin-top:12px}
+  .coach{border-top:1px solid var(--border);margin-top:12px;padding-top:4px}
+  .co{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+  .co:last-child{border-bottom:none}
+  .co .ci{flex:none;min-width:36px;padding:0 5px;height:30px;border-radius:8px;background:var(--gold-dim);color:var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:15px}
+  .co .ct{flex:1;min-width:0}
+  .co .ct b{display:block;font-size:13.5px}
+  .co .ct span{font-size:11.5px;color:var(--muted);line-height:1.4}
+  .co button{flex:none;background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:700}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -247,6 +269,9 @@
 
 <!-- DASHBOARD -->
 <div class="view on wrap" id="v-dash">
+  <div class="section-title">Today</div>
+  <div class="card" id="todayCard"></div>
+
   <div class="section-title">This week</div>
   <div class="week" id="week"></div>
   <div class="legend"><span class="r">Ride</span><span class="w">Walk</span><span class="l">Lift/HIIT</span><span class="m">Macros</span></div>
@@ -479,6 +504,11 @@ const GYM   = 'THE GARAGE';   // big title
 const OWNER = 'YOUR GYM';     // small line above it
 const T = { cal:2000, proMin:170, proMax:200, fatMax:70, carb:200 };  // daily targets
 const START_WEIGHT = 200;     // the weight you started at
+/* Energy balance: resting burn comes from these (Mifflin-St Jeor); leave age or
+   height null and it falls back to a rough estimate from bodyweight. */
+const ME = { age:null, heightIn:null, sex:'m' };
+const GOAL_LBWK = 2;          // target loss per week
+const BEDTIME = 23;           // hour the day's projection runs to
 /* ─────────────────────────────────────── */
 /* Travel days eat higher on purpose — under-eating on the road is the worse
    outcome. A list, so past trips stay (old days keep being judged against the cap
@@ -1266,6 +1296,7 @@ function checkDay(){
 window.addEventListener('focus',checkDay);
 window.addEventListener('pageshow',checkDay);
 setInterval(checkDay,60000);
+setInterval(()=>{ if(currentView==='dash') renderToday(); },300000);   // projection moves with the clock
 
 async function copyBackup(){
   const j=JSON.stringify(DB);
@@ -1309,7 +1340,7 @@ function render(){
   if(!logged(d)) d=addDays(d,-1);
   while(logged(d)){ s++; d=addDays(d,-1); }
   $('streakN').textContent=s;
-  renderHK();
+  renderHK(); renderToday();
 
   const ws=weekStart(t); let html='';
   for(let i=0;i<7;i++){
@@ -1333,8 +1364,8 @@ function render(){
     if(p7.length>=3){
       const rate=avg(p7)-a7, el=$('sRate');
       el.textContent=(rate>=0?'-':'+')+Math.abs(rate).toFixed(1);
-      el.className='v '+(rate>=1&&rate<=1.75?'green':(rate>2?'red':'gold'));
-      $('sRateD').textContent= rate>2?'too fast — add 150 cal':rate<0.75?'slow — hold steady':'on target';
+      el.className='v '+(rate>=GOAL_LBWK-0.5&&rate<=GOAL_LBWK+0.5?'green':(rate>GOAL_LBWK+0.75?'red':'gold'));
+      $('sRateD').textContent= rate>GOAL_LBWK+0.75?'too fast — add 150 cal':rate<GOAL_LBWK-0.5?'slower than '+GOAL_LBWK+'/wk':'on target';
     } else { $('sRate').textContent='–'; $('sRateD').textContent='need 2 weeks'; $('sRateD').className='d'; }
   } else { $('sWeight').textContent='–'; $('sAvg').textContent='–'; $('sRate').textContent='–'; }
   drawWeight();
@@ -1787,7 +1818,9 @@ function loadWorkout(p){
    are left exactly as they were. */
 const HK_KEYS = { weight:'weight', wt:'weight', bodyweight:'weight',
   cal:'cal', cals:'cal', calories:'cal', energy:'cal', dietaryenergy:'cal', kcal:'cal',
-  pro:'pro', protein:'pro', carb:'carb', carbs:'carb', carbohydrates:'carb', fat:'fat', totalfat:'fat' };
+  pro:'pro', protein:'pro', carb:'carb', carbs:'carb', carbohydrates:'carb', fat:'fat', totalfat:'fat',
+  active:'burnA', activeenergy:'burnA', activecalories:'burnA', ae:'burnA', burned:'burnA',
+  resting:'burnR', restingenergy:'burnR', re:'burnR' };
 function hkDate(v){
   v=String(v||'').trim();
   let m=v.match(/(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return m[1]+'-'+pad2(+m[2])+'-'+pad2(+m[3]);
@@ -1818,7 +1851,7 @@ function applyHealth(txt){
   recs.forEach(r=>{
     const d=r.date||fb, cur=live(d);
     const e=cur?JSON.parse(JSON.stringify(cur)):{date:d};
-    Object.assign(e,r.vals); e.date=d; e.hk=now; e.u=now;
+    Object.assign(e,r.vals); e.date=d; e.hk=now; e.hkT=now; e.u=now;
     DB.days[d]=e; out.push(d);
   });
   DB.prs=computePRs(); writeLocal(); render(); queuePush();
@@ -1839,7 +1872,8 @@ $('hkIn').addEventListener('paste',()=>setTimeout(()=>applyHealth(),0));   // pa
 
 /* ── HEALTH VIA LINK ── the Shortcut can open the app with the numbers in the link
    instead of copying them, so nothing needs pasting:
-       …/artifact/<id>#h_2026-09-23_w256.4_c1850_p160_cb170_f60
+       …/artifact/<id>#h_2026-09-23_w256.4_c1850_p160_cb170_f60_ae640
+   (ae = Active Energy burned today, re = Resting Energy)
    Only letters, digits . _ ~ - survive in the link, hence this compact form.
    Applied once per distinct link, after the synced data has loaded. */
 function hashHealthText(){
@@ -1850,8 +1884,8 @@ function hashHealthText(){
   const L=[];
   h.split(/[_~]/).slice(1).forEach(t=>{
     if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(t)){ L.push('date: '+t); return; }
-    const m=t.match(/^(cb|w|c|p|f)(-?[\d.]*)$/i); if(!m||!m[2]) return;
-    L.push({w:'weight',c:'cal',p:'pro',cb:'carb',f:'fat'}[m[1].toLowerCase()]+': '+m[2]);
+    const m=t.match(/^(cb|ae|re|w|c|p|f)(-?[\d.]*)$/i); if(!m||!m[2]) return;
+    L.push({w:'weight',c:'cal',p:'pro',cb:'carb',f:'fat',ae:'active',re:'resting'}[m[1].toLowerCase()]+': '+m[2]);
   });
   return L.length?{key:h,text:L.join('\n')}:null;
 }
@@ -1863,11 +1897,137 @@ function applyHashHealth(){
   let last=null; try{ last=localStorage.getItem('garage:hk:last'); }catch(e){}
   if(last===r.key) return;                                  // this exact link was already applied
   try{ localStorage.setItem('garage:hk:last',r.key); }catch(e){}
-  if(currentView!=='log') go('log',document.querySelectorAll('nav button')[2]);
   applyHealth(r.text);
+  if(currentView!=='dash') go('dash',document.querySelectorAll('nav button')[0]);
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
 }
 window.addEventListener('hashchange',applyHashHealth);
+
+/* ── ENERGY BALANCE · the Today card on Home ──
+   Burned = resting burn for the whole day (estimated: the watch comes off at night)
+          + active calories from Apple Health (Watch, Peloton, MapMyRun…), trusted at 85%
+          × a correction learned from the real weight trend once there's enough data.
+   The daily deficit target comes from GOAL_LBWK (3,500 cal ≈ 1 lb). */
+const DEFICIT = Math.round(GOAL_LBWK*3500/7);
+const ACT_TRUST = 0.85;        // wrist trackers run high; the weight trend corrects the rest
+const IDLE_ACTIVE_HR = 30;     // active cal/hour from just moving around, for the rest-of-day projection
+const fmtN = n=>Math.round(n).toLocaleString('en-US');
+const latestWeight = ()=>{ const w=sorted().filter(d=>live(d).weight!=null); return w.length?live(w[w.length-1]).weight:START_WEIGHT; };
+function rmr(){
+  const lb=latestWeight(), kg=lb*0.4536;
+  if(ME.age&&ME.heightIn) return Math.round(10*kg+6.25*ME.heightIn*2.54-5*ME.age+(ME.sex==='f'?-161:5));
+  return Math.round(lb*8.2);   // rough stand-in until age + height are set in the config
+}
+const rawBurn = e=>rmr()+ACT_TRUST*((e&&e.burnA)||0);
+/* What the numbers said you burned vs what the scale says happened, over the last
+   4 weeks. Needs 14+ days with food and burn logged and 8+ weigh-ins spanning 2 weeks. */
+function calib(){
+  const t=todayStr(), days=sorted().filter(d=>d>=addDays(t,-28)&&d<t);
+  const fed=days.filter(d=>{const e=live(d);return e.cal>0&&e.burnA>0;});
+  const wts=days.filter(d=>live(d).weight!=null);
+  const no={k:1,n:fed.length,ready:false};
+  if(fed.length<14||wts.length<8) return no;
+  const x0=Date.parse(wts[0]), xs=wts.map(d=>(Date.parse(d)-x0)/864e5), ys=wts.map(d=>live(d).weight);
+  if(xs[xs.length-1]<14) return no;
+  const mx=xs.reduce((a,b)=>a+b)/xs.length, my=ys.reduce((a,b)=>a+b)/ys.length;
+  const slope=xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0)/xs.reduce((a,x)=>a+(x-mx)*(x-mx),0);   // lb per day
+  const eat=fed.reduce((a,d)=>a+live(d).cal,0)/fed.length;
+  const est=fed.reduce((a,d)=>a+rawBurn(live(d)),0)/fed.length;
+  return {k:Math.min(1.2,Math.max(0.8,(eat-slope*3500)/est)),n:fed.length,ready:true};
+}
+/* cal/min for each kind of session — your own rides and walks when there are any */
+function burnRates(){
+  const lb=latestWeight(), hist=sorted().slice(-60).map(live);
+  const rides=hist.filter(e=>e.ride&&e.ride.out>0&&e.ride.min>0);
+  const walks=hist.filter(e=>e.walk&&e.walk.mi>0&&e.walk.min>0);
+  const avg=(a,f)=>a.reduce((s,e)=>s+f(e),0)/a.length;
+  return {
+    ride: rides.length?avg(rides,e=>e.ride.out/e.ride.min):7,              // Peloton kJ ≈ calories burned
+    walk: 0.3*lb*(walks.length?avg(walks,e=>e.walk.mi/e.walk.min):3.2/60),  // ~0.3 cal per lb per mile
+    row: lb*0.032, run: lb*0.05, lift: lb*0.02,
+    ridden: rides.length>0, walked: walks.length>0 };
+}
+const BIG = {CH:'Chest',BK:'Back',SH:'Shoulders',QD:'Legs',HM:'Legs',GL:'Legs'};
+function recentTraining(){
+  const t=todayStr(), hit={}; let last=null;
+  for(let i=0;i<45;i++){
+    const e=live(addDays(t,-i)); if(!e||!didLift(e.lift)) continue;
+    if(last==null) last=i;
+    if(i<3) (e.lift.ex||[]).forEach(x=>{ if(!(x.sets||[]).some(performed)) return; const f=findEx(x.name); if(f&&BIG[f.m]) hit[BIG[f.m]]=1; });
+  }
+  const fresh=[...new Set(Object.values(BIG))].filter(g=>!hit[g]);
+  return {hit,fresh,last};
+}
+const minsFor = (cal,rate)=>Math.max(10,Math.ceil(cal/rate/5)*5);
+function coachItems(e,room,C){
+  const t=todayStr(), out=[], rates=burnRates(), rec=recentTraining();
+  const plan=DB.plan&&DB.plan.days&&DB.plan.days[t];
+  const lifted=didLift(e.lift), gap=room<0?-room:0;
+  const have=q=>liveLocs().some(l=>(l.eq||[]).includes(q));
+  if(plan&&loadable(plan)&&!lifted){
+    const sets=(plan.ex||[]).reduce((a,x)=>a+(x.sets||[]).length,0), m=Math.max(25,Math.round(sets*2.5));
+    out.push({i:'PLAN',t:'Today’s plan: '+(plan.title||'Workout')+(locName(plan.loc)?' @ '+locName(plan.loc):''),
+      s:'~'+m+' min · burns ~'+fmtN(m*rates.lift)+' cal',b:'Start',fn:'loadPlanDay(\''+t+'\')'});
+  } else if(!lifted && (rec.last==null||rec.last>=2) && !(plan&&plan.kind==='rest')){
+    const tpls=liveMap(DB.tpl).map(id=>({id,p:DB.tpl[id]})).map(o=>({...o,sc:new Set((o.p.ex||[]).map(x=>{const f=findEx(x.name);return f&&BIG[f.m];}).filter(g=>g&&rec.fresh.includes(g))).size})).sort((a,b)=>b.sc-a.sc);
+    const best=tpls[0]&&tpls[0].sc?tpls[0]:null;
+    out.push({i:'LIFT',t:best?'Lift: '+(best.p.title||'Workout'):'Get a lift in',
+      s:(rec.last==null?'No lifts logged yet':'Last lift '+rec.last+' days ago')+' · fresh: '+rec.fresh.join(', '),
+      b:best?'Load':null,fn:best?'loadTpl(\''+best.id+'\')':''});
+  }
+  if(gap>=60){
+    const legs=!!rec.hit.Legs, opts=[['WALK','Walk',rates.walk,'easy on recovery'+(rates.walked?'':' · ~3.2 mph')]];
+    if(have('bk')) opts.push(['RIDE','Peloton ride',rates.ride,rates.ridden?'at your usual output':'moderate effort']);
+    if(have('rw')) opts.push(['ROW','Rower',rates.row,'steady pace']);
+    if(have('ro')&&!legs&&gap>=300) opts.push(['RUN','Easy run',rates.run,'conversational pace']);
+    // sized to close the gap, but never more than an hour — a bigger gap gets a partial fix
+    opts.map(o=>({o,m:Math.min(60,minsFor(gap,o[2]))})).sort((a,b)=>b.o[2]-a.o[2]).slice(0,3)
+      .forEach(({o,m})=>{ const c=m*o[2]; out.push({i:o[0],t:o[1]+' · '+m+' min',
+        s:'~'+fmtN(c)+' cal'+(c<gap*0.9?' (closes '+Math.round(c/gap*100)+'%)':'')+' · '+o[3]}); });
+    if(gap>700) out.push({i:'EAT',t:'Don’t chase all of it tonight',s:'Close what you can, then trim ~'+fmtN(Math.min(500,gap/2))+' cal tomorrow. The weekly average is what moves the scale.'});
+  } else if(plan&&plan.kind==='rest'&&!out.length){
+    out.push({i:'REST',t:'Rest day',s:'You’re on track. A walk is a bonus, not a must.'});
+  }
+  return out;
+}
+function renderToday(){
+  const el=$('todayCard'); if(!el) return;
+  const t=todayStr(), e=live(t)||{}, now=new Date(), h=now.getHours()+now.getMinutes()/60;
+  const C=calib(), R=rmr(), hrsLeft=Math.max(0,BEDTIME-h);
+  const act=e.burnA||0, burnNow=(R*h/24+ACT_TRUST*act)*C.k;
+  const burnEnd=(R+ACT_TRUST*(act+IDLE_ACTIVE_HR*hrsLeft))*C.k;
+  const eaten=e.cal||0, target=burnEnd-DEFICIT, room=target-eaten, endDef=burnEnd-eaten;
+  const proNeed=e.pro!=null?Math.max(0,T.proMin-e.pro):null;
+  let call, cls;
+  if(!e.cal&&!act){ call='No Health numbers for today yet. Run your Shortcut after you log food.'; cls='gold'; }
+  else if(room>=0){ cls='green';
+    call='On track. Eat up to <b>'+fmtN(room)+'</b> more and still finish '+fmtN(DEFICIT)+' under ('+GOAL_LBWK+' lb/week pace).';
+    if(proNeed>0) call+=' You still need <b>'+proNeed+'g protein</b>'+(proNeed*4>room*0.7?', so make it lean: chicken, egg whites, a shake.':'.'); }
+  else { cls=endDef>DEFICIT*0.5?'gold':'red';
+    call='<b>'+fmtN(-room)+' over</b> for a '+fmtN(DEFICIT)+' deficit. '+(endDef>0
+      ?'Stop eating now and you finish '+fmtN(endDef)+' under (~'+(endDef*7/3500).toFixed(1)+' lb/week pace), or burn the rest below.'
+      :'That’s a surplus of '+fmtN(-endDef)+' today. Burn some below and go lighter tomorrow.'); }
+  const stale=e.hkT&&Date.now()-e.hkT>90*60000?' · Health from '+new Date(e.hkT).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+', run the Shortcut to refresh':'';
+  const noBurn=e.cal&&!act?' · No burn data, add Active Energy to your Shortcut':'';
+  const pct=v=>Math.max(0,Math.min(100,v/Math.max(1,burnEnd)*100));
+  const items=coachItems(e,room,C);
+  const coachHtml=items.length?'<div class="coach">'+items.map(it=>'<div class="co"><div class="ci">'+it.i+'</div><div class="ct"><b>'+esc(it.t)+'</b><span>'+esc(it.s)+'</span></div>'+(it.b?'<button onclick="'+it.fn+'">'+it.b+'</button>':'')+'</div>').join('')+'</div>':'';
+  if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
+    el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
+      +'<div class="hint">Target: '+fmtN(DEFICIT)+' cal under what you burn each day ('+GOAL_LBWK+' lb/week). Resting burn ~'+fmtN(R)+'.</div>'+coachHtml;
+    return;
+  }
+  el.innerHTML='<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
+      +'<div class="td-lbl">for a '+fmtN(DEFICIT)+' deficit by bedtime</div></div>'
+      +'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+(endDef>=0?'−':'+')+fmtN(Math.abs(endDef))+'</div><div class="td-lbl">if you stop eating</div></div></div>'
+    +'<div class="td-meter"><i style="width:'+pct(eaten)+'%;background:'+(room>=0?'var(--blue)':'var(--red)')+'"></i><b style="left:'+pct(target)+'%"></b></div>'
+    +'<div class="chart-note" style="margin-top:2px"><span>Eaten vs. bedtime burn · line = target</span><span>'+fmtN(target)+' target</span></div>'
+    +'<div class="td-stats"><div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div><div><b>'+fmtN(burnEnd)+'</b><span>by bedtime</span></div></div>'
+    +'<div class="td-call">'+call+'</div>'
+    +coachHtml
+    +'<div class="hint">Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
+      +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
+}
 
 /* ── LOG FORM ── */
 const F={ride:false,walk:false,hiit:false,lift:false};
@@ -2150,7 +2310,8 @@ function readForm(){
     e.lift={session:$('fSession').value.trim(),loc:$('fLoc').value,ex};
   }
   e.notes=$('fNotes').value.trim();
-  const prev=live(formDate); if(prev&&prev.hk) e.hk=prev.hk;
+  const prev=live(formDate);
+  if(prev) ['hk','hkT','burnA','burnR'].forEach(k=>{ if(prev[k]!=null) e[k]=prev[k]; });   // Health-only fields
   return e;
 }
 const hasContent=e=>e.weight!=null||e.cal!=null||e.pro!=null||e.carb!=null||e.fat!=null||e.ride||e.walk||e.hiit||(e.lift&&e.lift.ex.length)||e.notes;
