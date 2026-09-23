@@ -50,5 +50,4 @@ At the top of the main `<script>`: `GYM`, `OWNER`, `T` (daily targets), `START_W
 ## Open items
 
 - Add yesterday's totals to the Health Shortcut (`_yc`, `_yae`; see HEALTH-SHORTCUT.md) so the weekend bank sees full days.
-- Mon 9/21 and Tue 9/22 are hand-entered as 800-cal deficits (`BANK_SEED`): confirm whether that meant 800 under burn (−200 vs target each) or 800 better than target.
 - Gymverse: real weight of the 5/14 cable row 4th set ("1145 lb"), and the date of the first incline DB session.
