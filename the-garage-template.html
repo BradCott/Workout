@@ -1187,6 +1187,21 @@ let syncState = 'local';     // local | ok | busy | err
 let cloudTried = false;
 
 /* ── MERGE (newest edit per record wins; deletes are tombstones) ── */
+/* A day is two halves that change independently: what Apple Health sends (weight,
+   food, burn) and what you log (lifts, cardio, notes). Each half carries its own
+   stamp (uH / uL) and is merged on its own, so a Health link opened in another
+   browser can't wipe a workout, and a workout can't wipe newer Health numbers. */
+const HK_FIELDS = ['weight','cal','pro','carb','fat','burnA','burnR','hk','hkT'];
+const uH = e=>e.uH!=null?e.uH:(e.u||0), uL = e=>e.uL!=null?e.uL:(e.u||0);
+function mergeDay(x,y){
+  if(x.deleted||y.deleted) return (y.u||0)>=(x.u||0)?y:x;   // a delete is a whole-day decision
+  const L=uL(y)>=uL(x)?y:x, H=uH(y)>=uH(x)?y:x;
+  if(L===H) return L;
+  const out=Object.assign({},L);
+  HK_FIELDS.forEach(k=>{ if(H[k]!=null) out[k]=H[k]; else delete out[k]; });
+  out.uL=uL(L); out.uH=uH(H); out.u=Math.max(x.u||0,y.u||0);
+  return out;
+}
 function mergeDB(a,b){
   a=a||{}; b=b||{};
   const out={days:{},prs:{},plan:null,planU:0};
@@ -1195,7 +1210,7 @@ function mergeDB(a,b){
     const x=(a.days||{})[k], y=(b.days||{})[k];
     if(!x){out.days[k]=y;return}
     if(!y){out.days[k]=x;return}
-    out.days[k]=(y.u||0)>=(x.u||0)?y:x;
+    out.days[k]=mergeDay(x,y);
   });
   const pk=new Set(Object.keys(a.prs||{}).concat(Object.keys(b.prs||{})));
   pk.forEach(k=>{
@@ -1917,7 +1932,7 @@ function mergeStray(from){
   PK=null; openPicker({loc:'all',onPick:to=>askConfirm('Rename every “'+from+'” in your log, plan and saved workouts to “'+to+'”?',()=>{
     const now=Date.now(), fix=ex=>{ let n=0; (ex||[]).forEach(x=>{ if(String(x.name||'').trim()===from){ x.name=to; n++; } }); return n; };
     let days=0;
-    Object.keys(DB.days).forEach(d=>{ const e=live(d); if(e&&e.lift&&fix(e.lift.ex)){ e.u=now; days++; } });
+    Object.keys(DB.days).forEach(d=>{ const e=live(d); if(e&&e.lift&&fix(e.lift.ex)){ e.u=now; e.uL=now; days++; } });
     liveMap(DB.tpl).forEach(id=>{ if(fix(DB.tpl[id].ex)) DB.tpl[id].u=now; });
     if(DB.plan&&Object.values(DB.plan.days||{}).some(p=>(p.ex||[]).some(x=>String(x.name||'').trim()===from))){
       Object.values(editablePlan().days||{}).forEach(p=>fix(p.ex)); DB.planU=Math.max(now,SEED_PLAN_U+1); }
@@ -2175,7 +2190,7 @@ function applyHealth(txt){
   recs.forEach(r=>{
     const d=r.date||fb, cur=live(d);
     const e=cur?JSON.parse(JSON.stringify(cur)):{date:d};
-    Object.assign(e,r.vals); e.date=d; e.hk=now; e.hkT=now; e.u=now;
+    Object.assign(e,r.vals); e.date=d; e.hk=now; e.hkT=now; e.u=now; e.uH=now; e.uL=cur?uL(cur):0;
     DB.days[d]=e; out.push(d);
   });
   DB.prs=computePRs(); writeLocal(); render(); queuePush();
@@ -3087,7 +3102,8 @@ function doSave(){
   saveT=null;
   const e=readForm(); if(!e.date) return;
   if(!hasContent(e)){ $('saveState').textContent=''; return; }
-  e.u=Date.now();
+  e.u=Date.now(); e.uL=e.u;
+  { const p=live(e.date); e.uH=!p||HK_FIELDS.some(k=>!['hk','hkT','burnA','burnR'].includes(k)&&(p[k]??null)!==(e[k]??null))?e.u:uH(p); }
   const before=DB.prs||{};
   DB.days[e.date]=e;
   DB.prs=computePRs();
