@@ -289,6 +289,11 @@
   .bk-days b{display:block;font-family:var(--disp);font-size:15px;font-weight:400;margin-top:2px;font-variant-numeric:tabular-nums}
   .bk-days .up b{color:var(--green)}.bk-days .dn b{color:var(--red)}.bk-days .nd b{color:var(--faint)}
   .bk-days .now{border-color:var(--gold)}.bk-days .we{background:var(--gold-dim)}
+  .bk-days div{cursor:pointer}
+  /* one day, as Home saw it */
+  .dv-ex{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;font-variant-numeric:tabular-nums}
+  .dv-ex:last-child{border-bottom:none}
+  .dv-ex span:last-child{color:var(--muted);text-align:right}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -309,6 +314,9 @@
 <div class="view on wrap" id="v-dash">
   <div class="section-title">Today</div>
   <div class="card" id="todayCard"></div>
+
+  <div class="section-title">This week's deficit</div>
+  <div class="card" id="wkCard"></div>
 
   <div class="section-title">Weekend bank</div>
   <div class="card" id="bankCard"></div>
@@ -520,6 +528,11 @@
 <div class="sheet" id="aiWrap">
   <div class="sheet-head"><button class="add-link" onclick="closeAI()">Close</button><b>AI coach</b><span style="min-width:56px"></span></div>
   <div class="sheet-body" id="aiBody"></div>
+</div>
+<!-- ONE DAY, AS HOME SAW IT -->
+<div class="sheet" id="dayWrap">
+  <div class="sheet-head"><button class="add-link" onclick="dayStep(-1)" id="dvPrev">‹ Prev</button><b id="dvTitle">Day</b><button class="add-link" style="text-align:right" onclick="dayStep(1)" id="dvNext">Next ›</button></div>
+  <div class="sheet-body" id="dayBody"></div>
 </div>
 <!-- EXERCISE PICKER / CHOOSER -->
 <div class="sheet" id="pkWrap">
@@ -1496,7 +1509,7 @@ function checkDay(){
 window.addEventListener('focus',checkDay);
 window.addEventListener('pageshow',checkDay);
 setInterval(checkDay,60000);
-setInterval(()=>{ if(currentView==='dash'){ renderToday(); renderBank(); } },300000);   // projection moves with the clock
+setInterval(()=>{ if(currentView==='dash'){ renderToday(); renderWeekDef(); renderBank(); } },300000);   // projection moves with the clock
 
 async function copyBackup(){
   const j=JSON.stringify(DB);
@@ -1540,12 +1553,12 @@ function render(){
   if(!logged(d)) d=addDays(d,-1);
   while(logged(d)){ s++; d=addDays(d,-1); }
   $('streakN').textContent=s;
-  renderHK(); renderToday(); renderBank();
+  renderHK(); renderToday(); renderWeekDef(); renderBank();
 
   const ws=weekStart(t); let html='';
   for(let i=0;i<7;i++){
     const dd=addDays(ws,i), e=live(dd), m=macroHit(e);
-    html+='<div class="day '+(dd===t?'today':'')+'" onclick="openDay(\''+dd+'\')">'
+    html+='<div class="day '+(dd===t?'today':'')+'" onclick="openDayView(\''+dd+'\')">'
       +'<div class="dn">'+dow(dd)+'</div><div class="dd">'+dd.slice(8)+'</div>'
       +'<div class="dots"><span class="dot ride '+(e&&e.ride?'on':'')+'"></span><span class="dot walk '+(e&&e.walk?'on':'')+'"></span><span class="dot lift '+(trained(e)?'on':'')+'"></span></div>'
       +'<div class="mac '+(m===null?'':(m?'hit':'miss'))+'"></div></div>';
@@ -1575,7 +1588,6 @@ function render(){
   if(nd.length){
     const av=k=>Math.round(nd.reduce((a,x)=>a+(live(x)[k]||0),0)/nd.length);
     const c=av('cal'),p=av('pro'),cb=av('carb'),f=av('fat');
-    const bar=(l,v,max,col,txt)=>'<div class="mrow"><div class="ml">'+l+'</div><div class="mt"><div class="mf" style="width:'+Math.min(100,v/max*100)+'%;background:'+col+'"></div></div><div class="mv">'+txt+'</div></div>';
     $('macroCard').innerHTML=
       bar('Calories',c,T.cal,c>T.cal+100?'var(--red)':'var(--blue)',c+' / '+T.cal)+
       bar('Protein',p,T.proMax,p<T.proMin?'var(--red)':'var(--gold)',p+'g / '+T.proMin+'+')+
@@ -1594,6 +1606,8 @@ function render(){
   const prs=Object.entries(DB.prs).sort((a,b)=>b[1].w-a[1].w);
   $('prBoard').innerHTML=prs.length?prs.map(([n,p])=>'<div class="pr" onclick="openExHist(this.dataset.n)" data-n="'+esc(n)+'"><div><div class="n">'+esc(n)+'</div><div class="s">'+fmtD(p.d)+'</div></div><div class="w">'+p.w+'<small>× '+p.r+'</small></div></div>').join(''):'<div class="empty">No PRs yet.</div>';
 }
+
+const bar=(l,v,max,col,txt)=>'<div class="mrow"><div class="ml">'+l+'</div><div class="mt"><div class="mf" style="width:'+Math.min(100,v/max*100)+'%;background:'+col+'"></div></div><div class="mv">'+txt+'</div></div>';
 
 /* ── CHARTS · trailing 7 days ── */
 function chartCtx(id,H){
@@ -2220,12 +2234,14 @@ const ACT_TRUST = 0.85;        // wrist trackers run high; the weight trend corr
 const IDLE_ACTIVE_HR = 30;     // active cal/hour from just moving around, for the rest-of-day projection
 const fmtN = n=>Math.round(n).toLocaleString('en-US');
 const latestWeight = ()=>{ const w=sorted().filter(d=>live(d).weight!=null); return w.length?live(w[w.length-1]).weight:START_WEIGHT; };
-function rmr(){
-  const lb=latestWeight(), kg=lb*0.4536;
+/* the most recent weigh-in on or before a day (today when no day is given) */
+const weightAt = d=>{ const w=sorted().filter(x=>x<=(d||todayStr())&&live(x).weight!=null); return w.length?live(w[w.length-1]).weight:START_WEIGHT; };
+function rmr(d){
+  const lb=weightAt(d), kg=lb*0.4536;
   if(ME.age&&ME.heightIn) return Math.round(10*kg+6.25*ME.heightIn*2.54-5*ME.age+(ME.sex==='f'?-161:5));
   return Math.round(lb*8.2);   // rough stand-in until age + height are set in the config
 }
-const rawBurn = e=>rmr()+ACT_TRUST*((e&&e.burnA)||0);
+const rawBurn = e=>rmr(e&&e.date)+ACT_TRUST*((e&&e.burnA)||0);
 /* What the numbers said you burned vs what the scale says happened, over the last
    4 weeks. Needs 14+ days with food and burn logged and 8+ weigh-ins spanning 2 weeks. */
 function calib(){
@@ -2291,13 +2307,27 @@ function coachItems(e,room,C){
   }
   return out;
 }
+/* today so far, and projected to bedtime */
+function energyNow(){
+  const t=todayStr(), e=live(t)||{}, now=new Date(), h=now.getHours()+now.getMinutes()/60;
+  const C=calib(), R=rmr(t), hrsLeft=Math.max(0,BEDTIME-h), act=e.burnA||0;
+  const restNow=R*h/24*C.k, actNow=ACT_TRUST*act*C.k, burnNow=restNow+actNow;   // split so resting and active read separately
+  const burnEnd=(R+ACT_TRUST*(act+IDLE_ACTIVE_HR*hrsLeft))*C.k, eaten=e.cal||0, target=burnEnd-DEFICIT;
+  return {e,h,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room:target-eaten,endDef:burnEnd-eaten};
+}
+/* a finished day: the whole day's resting burn + what the watch sent, minus what you ate.
+   null when no food was logged (unless the day's deficit was entered by hand) */
+function dayEnergy(d){
+  const e=live(d);
+  if((!e||e.cal==null)&&BANK_SEED[d]!=null) return {seeded:true,def:BANK_SEED[d]};
+  if(!e||e.cal==null) return null;
+  const C=calib(), R=rmr(d), rest=R*C.k, act=ACT_TRUST*(e.burnA||0)*C.k, burn=rest+act;
+  const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
+  return {C,R,rest,act,watch:e.burnA||0,burn,eaten:e.cal,def:burn-e.cal,partial:h<20,noBurn:!e.burnA};
+}
 function renderToday(){
   const el=$('todayCard'); if(!el) return;
-  const t=todayStr(), e=live(t)||{}, now=new Date(), h=now.getHours()+now.getMinutes()/60;
-  const C=calib(), R=rmr(), hrsLeft=Math.max(0,BEDTIME-h);
-  const act=e.burnA||0, restNow=R*h/24*C.k, actNow=ACT_TRUST*act*C.k, burnNow=restNow+actNow;   // split so resting and active read separately
-  const burnEnd=(R+ACT_TRUST*(act+IDLE_ACTIVE_HR*hrsLeft))*C.k;
-  const eaten=e.cal||0, target=burnEnd-DEFICIT, room=target-eaten, endDef=burnEnd-eaten;
+  const {e,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room,endDef}=energyNow();
   const proNeed=e.pro!=null?Math.max(0,T.proMin-e.pro):null;
   let call, cls;
   if(!e.cal&&!act){ call='No Health numbers for today yet. Run your Shortcut after you log food.'; cls='gold'; }
@@ -2342,18 +2372,17 @@ const PIZZA_SLICE = 285, BEER = 150;
    Only used when the day has no real food data. */
 const BANK_SEED = { '2026-09-21':800, '2026-09-22':800 };   // cal: a slice of large pepperoni, a regular beer
 function weekBank(){
-  const t=todayStr(), ws=weekStart(t), C=calib(), R=rmr(), days=[];
+  const t=todayStr(), ws=weekStart(t), days=[];
   let bank=0, known=0, past=0;
   for(let i=0;i<7;i++){
     const d=addDays(ws,i), e=live(d), wkd=i>=5;
     if(d>t){ days.push({d,wkd,fut:true}); continue; }
     if(d===t){ const over=TODAY_E&&TODAY_E.eaten?-Math.min(0,TODAY_E.room):0; days.push({d,wkd,today:true,delta:-over,room:TODAY_E?TODAY_E.room:null}); continue; }
     past++;
-    if((!e||e.cal==null)&&BANK_SEED[d]!=null){ const delta=BANK_SEED[d]-DEFICIT; days.push({d,wkd,delta,seeded:true}); bank+=delta; known++; continue; }
-    if(!e||e.cal==null){ days.push({d,wkd,nodata:true}); continue; }
-    const burn=(R+ACT_TRUST*(e.burnA||0))*C.k, delta=(burn-DEFICIT)-e.cal;
-    const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
-    days.push({d,wkd,delta,partial:h<20,noBurn:!e.burnA});
+    const en=dayEnergy(d);
+    if(!en){ days.push({d,wkd,nodata:true}); continue; }
+    const delta=en.def-DEFICIT;
+    days.push({d,wkd,delta,def:en.def,seeded:!!en.seeded,partial:!!en.partial,noBurn:!!en.noBurn});
     bank+=delta; known++;
   }
   const todayOver=days.find(x=>x.today); 
@@ -2380,12 +2409,105 @@ function renderBank(){
     +'<div class="bk-days">'+W.days.map(x=>{
       const cls=(x.today?'now ':'')+(x.wkd?'we ':'')+(x.fut||x.nodata?'nd':x.delta>=0?'up':'dn');
       const val=x.fut?'':x.nodata?'–':x.today&&x.delta===0?'…':(x.delta>=0?'+':'−')+fmtN(Math.abs(x.delta));
-      return '<div class="'+cls+'"><span>'+dow(x.d)+'</span><b>'+val+'</b></div>';}).join('')+'</div>'
+      return '<div class="'+cls+'" onclick="openDayView(\''+x.d+'\')"><span>'+dow(x.d)+'</span><b>'+val+'</b></div>';}).join('')+'</div>'
     +'<div class="td-call" style="font-size:13.5px">'+call+'</div>'
     +'<div class="hint">Each day counts against its own target: that day’s burn minus '+fmtN(DEFICIT)+'. '
       +'A day counts the last food and burn your Shortcut sent for it, so a morning run that also sends yesterday’s totals keeps every day complete.'
       +(seeded.length?' '+seeded.join(' and ')+' entered by hand.':'')
       +(warn.length?' Might be off: '+warn.join(', ')+'.':'')+(W.past-W.known>0?' '+(W.past-W.known)+' day'+(W.past-W.known>1?'s':'')+' this week had no food logged and '+(W.past-W.known>1?'aren’t':'isn’t')+' counted.':'')+'</div>';
+}
+
+/* ── THIS WEEK'S DEFICIT ── finished days add up; today shows where it's headed */
+function weekDefs(ws){
+  const t=todayStr(), out=[];
+  for(let i=0;i<7;i++){ const d=addDays(ws,i); if(d>=t) break; const en=dayEnergy(d); if(en) out.push({d,def:en.def}); }
+  return out;
+}
+function renderWeekDef(){
+  const el=$('wkCard'); if(!el) return;
+  const t=todayStr(), ws=weekStart(t), done=weekDefs(ws), tot=done.reduce((a,x)=>a+x.def,0), n=done.length;
+  const now=energyNow(), today=now.eaten?now.endDef:null, goal=DEFICIT*7;
+  const last=weekDefs(addDays(ws,-7)), lastTot=last.reduce((a,x)=>a+x.def,0);
+  const lastLine=last.length?'Last week: '+fmtN(lastTot)+' over '+last.length+' day'+(last.length>1?'s':'')+' (avg '+fmtN(lastTot/last.length)+'/day, ≈ '+(lastTot/3500).toFixed(1)+' lb).':'';
+  const sign=v=>(v<0?'+':'')+fmtN(Math.abs(v));   // a surplus shows as +
+  el.innerHTML='<div class="td-head"><div><div class="td-big '+(n?(tot>=DEFICIT*n?'green':tot>0?'gold':'red'):'')+'">'+(n?sign(tot):'–')+'<small>cal</small></div>'
+      +'<div class="td-lbl">'+(n?'deficit '+dow(ws)+(n>1?'–'+dow(done[n-1].d):'')+' · target '+fmtN(goal)+' for the week':'no finished days yet this week')+'</div></div>'
+      +(today!=null?'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+sign(tot+today)+'</div><div class="td-lbl">with today, if you stop eating</div></div>':'')+'</div>'
+    +'<div class="td-stats"><div><b>'+(n?fmtN(tot/n):'–')+'</b><span>avg / day</span></div><div><b>'+(n?(tot/3500).toFixed(1):'–')+'</b><span>≈ lb lost</span></div>'
+      +'<div><b>'+fmtN(Math.max(0,goal-tot))+'</b><span>left to target</span></div></div>'
+    +'<div class="hint">Deficit = everything you burned minus what you ate, day by day (target '+fmtN(DEFICIT)+'/day). Tap any day above or in the week strip to see it in full.'+(lastLine?' '+lastLine:'')+'</div>';
+}
+
+/* ── ONE DAY, AS HOME SAW IT ── tap a day in the week strip, the bank or History */
+let DV=null;
+function openDayView(d){ DV=d; $('dayWrap').classList.add('on'); $('dayWrap').scrollTop=0; document.body.style.overflow='hidden'; renderDayView(); }
+function closeDayView(){ DV=null; $('dayWrap').classList.remove('on'); document.body.style.overflow=''; }
+function dayStep(n){ const d=addDays(DV,n); if(d>todayStr()) return; DV=d; $('dayWrap').scrollTop=0; renderDayView(); }
+function renderDayView(){
+  const d=DV, t=todayStr(), e=live(d)||{}, isToday=d===t;
+  $('dvTitle').textContent=(isToday?'Today · ':'')+dow(d)+' '+fmtD(d);
+  $('dvNext').style.visibility=d<t?'visible':'hidden';
+  let h='<div class="actions" style="margin:0 0 12px"><button class="btn btn-dark sm" onclick="closeDayView()">Close</button>'
+    +'<button class="btn btn-dark sm" onclick="closeDayView();openDay(\''+d+'\')">'+(d>t?'Open in Log':'Edit this day')+'</button></div>';
+  if(d>t){
+    const p=DB.plan&&DB.plan.days&&DB.plan.days[d];
+    $('dayBody').innerHTML=h+'<div class="card">'+(p?'<div style="font-weight:700">'+esc(p.title||'Workout')+'</div>'+exLines(p):'<div class="empty">Nothing planned.</div>')+'</div>';
+    return;
+  }
+  // energy
+  h+='<div class="section-title">Energy</div><div class="card">';
+  const en=isToday?null:dayEnergy(d);
+  if(isToday){
+    const x=energyNow();
+    h+=x.eaten||x.act?'<div class="td-head"><div><div class="td-big '+(x.endDef>=DEFICIT?'green':x.endDef>DEFICIT*0.5?'gold':'red')+'">'+(x.endDef<0?'+':'')+fmtN(Math.abs(x.endDef))+'<small>cal</small></div>'
+      +'<div class="td-lbl">'+(x.endDef<0?'surplus':'deficit')+' by bedtime if you stop eating</div></div></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(x.restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(x.actNow)+'</b><span>active · watch '+fmtN(x.act)+'</span></div><div><b>'+fmtN(x.burnEnd)+'</b><span>burn by bedtime</span></div>'
+      +'<div><b>'+fmtN(x.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(x.target)+'</b><span>eat target</span></div><div><b>'+(x.room>=0?fmtN(x.room):'+'+fmtN(-x.room))+'</b><span>'+(x.room>=0?'left to eat':'over')+'</span></div></div>'
+      :'<div class="empty">No Health numbers for today yet.</div>';
+  } else if(en&&en.seeded){
+    h+='<div class="td-big '+(en.def>=DEFICIT?'green':'gold')+'">'+fmtN(en.def)+'<small>cal</small></div><div class="td-lbl">deficit, entered by hand</div>'
+      +'<div class="hint">No food was logged this day, so its deficit was entered by hand.</div>';
+  } else if(en){
+    const miss=en.def-DEFICIT;
+    h+='<div class="td-head"><div><div class="td-big '+(en.def>=DEFICIT?'green':en.def>DEFICIT*0.5?'gold':'red')+'">'+(en.def<0?'+':'')+fmtN(Math.abs(en.def))+'<small>cal</small></div>'
+      +'<div class="td-lbl">'+(en.def<0?'surplus':'deficit')+' for the day</div></div>'
+      +'<div style="text-align:right"><div class="td-big" style="font-size:26px;color:'+(miss>=0?'var(--green)':'var(--red)')+'">'+(miss>=0?'+':'−')+fmtN(Math.abs(miss))+'</div><div class="td-lbl">vs '+fmtN(DEFICIT)+' target</div></div></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(en.rest)+'</b><span>resting</span></div><div><b>'+fmtN(en.act)+'</b><span>active · watch '+fmtN(en.watch)+'</span></div><div><b>'+fmtN(en.burn)+'</b><span>burned</span></div>'
+      +'<div><b>'+fmtN(en.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(en.burn-DEFICIT)+'</b><span>eat target</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein</span></div></div>'
+      +(en.partial||en.noBurn?'<div class="hint">'+(en.noBurn?'No burn data was sent for this day, so only resting burn is counted.':'Health numbers were last sent before 8 PM, so the day may be missing food or burn.')+'</div>':'');
+  } else h+='<div class="empty">No food logged this day.</div>';
+  h+='</div>';
+  // weight
+  const wds=sorted().filter(x=>x<=d&&live(x).weight!=null);
+  if(e.weight!=null){
+    const prev=wds.length>1?live(wds[wds.length-2]):null, l7=wds.slice(-7).map(x=>live(x).weight), avg=l7.reduce((a,b)=>a+b,0)/l7.length;
+    h+='<div class="section-title">Weight</div><div class="stats">'
+      +'<div class="stat"><div class="v">'+e.weight.toFixed(1)+'</div><div class="k">Weight</div><div class="d">'+(e.weight-START_WEIGHT).toFixed(1)+' from '+START_WEIGHT+'</div></div>'
+      +'<div class="stat"><div class="v">'+(prev?((e.weight-prev.weight>0?'+':'')+(e.weight-prev.weight).toFixed(1)):'–')+'</div><div class="k">vs last</div><div class="d">'+(prev?fmtD(prev.date||wds[wds.length-2]):'')+'</div></div>'
+      +'<div class="stat"><div class="v gold">'+avg.toFixed(1)+'</div><div class="k">7-day avg</div><div class="d">'+l7.length+' weigh-in'+(l7.length>1?'s':'')+'</div></div></div>';
+  }
+  // food
+  if(e.cal!=null){
+    h+='<div class="section-title">Nutrition</div><div class="card">'
+      +bar('Calories',e.cal,T.cal,e.cal>calCap(d)?'var(--red)':'var(--blue)',e.cal+' / '+T.cal)
+      +bar('Protein',e.pro||0,T.proMax,(e.pro||0)<T.proMin?'var(--red)':'var(--gold)',(e.pro!=null?e.pro:'–')+'g / '+T.proMin+'+')
+      +bar('Fat',e.fat||0,T.fatMax,(e.fat||0)>T.fatMax?'var(--red)':'var(--purple)',(e.fat!=null?e.fat:'–')+'g / '+T.fatMax)
+      +bar('Carbs',e.carb||0,T.carb,'var(--teal)',(e.carb!=null?e.carb:'–')+'g')+'</div>';
+  }
+  // training
+  const tr=[];
+  if(e.ride) tr.push('<div class="dv-ex"><span>Peloton</span><span>'+[e.ride.min!=null?e.ride.min+' min':'',e.ride.out?e.ride.out+' kJ':'',e.ride.watts?e.ride.watts+' W':''].filter(Boolean).join(' · ')+'</span></div>');
+  if(e.walk) tr.push('<div class="dv-ex"><span>Walk</span><span>'+[e.walk.mi!=null?e.walk.mi+' mi':'',e.walk.min!=null?e.walk.min+' min':''].filter(Boolean).join(' · ')+'</span></div>');
+  if(e.hiit) tr.push('<div class="dv-ex"><span>HIIT</span><span>'+[e.hiit.rounds!=null?e.hiit.rounds+' rounds':'',e.hiit.min!=null?e.hiit.min+' min':''].filter(Boolean).join(' · ')+'</span></div>');
+  if(e.lift) (e.lift.ex||[]).forEach(x=>{ const ss=(x.sets||[]).filter(performed).map(s=>({w:Number(s.w)||0,r:Number(s.r)})); if(!ss.length) return;
+    const pr=DB.prs[canon(x.name)]; tr.push('<div class="dv-ex"><span>'+esc(x.name)+(pr&&pr.d===d?' 🏆':'')+'</span><span>'+esc(fmtSets(ss))+'</span></div>'); });
+  if(tr.length) h+='<div class="section-title">Training'+(didLift(e.lift)?' · '+esc(e.lift.session||'Lift')+(locName(e.lift.loc)?' @ '+esc(locName(e.lift.loc)):''):'')+'</div><div class="card">'+tr.join('')+'</div>';
+  // the week up to this day
+  const wd=weekDefs(weekStart(d)).filter(x=>x.d<=d), wt=wd.reduce((a,x)=>a+x.def,0);
+  if(wd.length) h+='<div class="section-title">Week so far</div><div class="card"><div class="hint" style="margin:0;font-size:12.5px">Through '+dow(d)+': <b style="color:var(--white)">'+fmtN(wt)+' cal</b> deficit over '+wd.length+' day'+(wd.length>1?'s':'')+' (avg '+fmtN(wt/wd.length)+'/day, target '+fmtN(DEFICIT)+').</div></div>';
+  if(e.notes) h+='<div class="section-title">Notes</div><div class="card" style="font-size:13.5px;line-height:1.5">'+esc(e.notes)+'</div>';
+  if(!live(d)&&!(en&&en.seeded)) h+='<div class="empty">Nothing logged this day.</div>';
+  $('dayBody').innerHTML=h;
 }
 
 /* ── AI COACH ── drafts one session from your history, recovery, the place's
@@ -2920,7 +3042,7 @@ function renderHist(){
   if(!days.length){ $('histList').innerHTML='<div class="empty">Nothing logged yet.</div>'; return; }
   $('histList').innerHTML=days.map(d=>{const e=live(d);
     const tags=[e.ride?'Ride':'',e.hiit?'HIIT':'',e.walk?('Walk '+(e.walk.mi!=null?e.walk.mi+'mi':'')):'',didLift(e.lift)?((e.lift.session||'Lift')+(e.lift.loc&&locName(e.lift.loc)?' @ '+locName(e.lift.loc):'')):''].filter(Boolean).join(' · ')||'Rest';
-    return '<div class="hist" onclick="openDay(\''+d+'\')"><div><div class="hd">'+dow(d)+' '+fmtD(d)+'</div><div class="hs">'+esc(tags)+'</div></div>'
+    return '<div class="hist" onclick="openDayView(\''+d+'\')"><div><div class="hd">'+dow(d)+' '+fmtD(d)+'</div><div class="hs">'+esc(tags)+'</div></div>'
     +'<div class="hv"><b>'+(e.weight!=null?e.weight:'–')+'</b><br>'+(e.cal!=null?e.cal:'–')+' cal · '+(e.pro!=null?e.pro:'–')+'g P · '+(e.fat!=null?e.fat:'–')+'g F</div></div>';}).join('');
 }
 
