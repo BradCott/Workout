@@ -445,6 +445,8 @@
 
 <!-- HISTORY -->
 <div class="view wrap" id="v-hist">
+  <div class="section-title">Weeks</div>
+  <div class="card" id="weekList"></div>
   <div class="section-title">All days</div>
   <div class="card" id="histList"></div>
 </div>
@@ -530,6 +532,10 @@
   <div class="sheet-body" id="aiBody"></div>
 </div>
 <!-- ONE DAY, AS HOME SAW IT -->
+<div class="sheet" id="weekWrap">
+  <div class="sheet-head"><button class="add-link" onclick="weekStep(-1)">‹ Prev</button><b id="wvTitle">Week</b><button class="add-link" style="text-align:right" onclick="weekStep(1)" id="wvNext">Next ›</button></div>
+  <div class="sheet-body" id="weekBody"></div>
+</div>
 <div class="sheet" id="dayWrap">
   <div class="sheet-head"><button class="add-link" onclick="dayStep(-1)" id="dvPrev">‹ Prev</button><b id="dvTitle">Day</b><button class="add-link" style="text-align:right" onclick="dayStep(1)" id="dvNext">Next ›</button></div>
   <div class="sheet-body" id="dayBody"></div>
@@ -1533,7 +1539,7 @@ function go(v,btn,fromNav){
   // the Log button always means today; past days open from History or the week strip
   if(v==='log' && (!formDate || (fromNav && formDate!==todayStr()))) loadForm(todayStr());
   if(v==='exp'){ buildExport(); renderSyncCard(); renderLook(); }
-  if(v==='hist') renderHist();
+  if(v==='hist'){ renderHist(); renderWeekList(); }
   window.scrollTo(0,0);
   if(leavingLog) flushPending();
 }
@@ -2435,7 +2441,8 @@ function renderWeekDef(){
       +(today!=null?'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+sign(tot+today)+'</div><div class="td-lbl">with today, if you stop eating</div></div>':'')+'</div>'
     +'<div class="td-stats"><div><b>'+(n?fmtN(tot/n):'–')+'</b><span>avg / day</span></div><div><b>'+(n?(tot/3500).toFixed(1):'–')+'</b><span>≈ lb lost</span></div>'
       +'<div><b>'+fmtN(Math.max(0,goal-tot))+'</b><span>left to target</span></div></div>'
-    +'<div class="hint">Deficit = everything you burned minus what you ate, day by day (target '+fmtN(DEFICIT)+'/day). Tap any day above or in the week strip to see it in full.'+(lastLine?' '+lastLine:'')+'</div>';
+    +'<div class="hint">Deficit = everything you burned minus what you ate, day by day (target '+fmtN(DEFICIT)+'/day). Tap any day in the week strip to see it in full.'+(lastLine?' '+lastLine:'')+'</div>'
+    +'<div class="actions"><button class="btn btn-dark sm" onclick="openWeekView(\''+addDays(ws,-7)+'\')">‹ Last week</button><button class="btn btn-dark sm" onclick="openWeekView(\''+ws+'\')">This week in full</button></div>';
 }
 
 /* ── ONE DAY, AS HOME SAW IT ── tap a day in the week strip, the bank or History */
@@ -2504,10 +2511,97 @@ function renderDayView(){
   if(tr.length) h+='<div class="section-title">Training'+(didLift(e.lift)?' · '+esc(e.lift.session||'Lift')+(locName(e.lift.loc)?' @ '+esc(locName(e.lift.loc)):''):'')+'</div><div class="card">'+tr.join('')+'</div>';
   // the week up to this day
   const wd=weekDefs(weekStart(d)).filter(x=>x.d<=d), wt=wd.reduce((a,x)=>a+x.def,0);
-  if(wd.length) h+='<div class="section-title">Week so far</div><div class="card"><div class="hint" style="margin:0;font-size:12.5px">Through '+dow(d)+': <b style="color:var(--white)">'+fmtN(wt)+' cal</b> deficit over '+wd.length+' day'+(wd.length>1?'s':'')+' (avg '+fmtN(wt/wd.length)+'/day, target '+fmtN(DEFICIT)+').</div></div>';
+  if(wd.length) h+='<div class="section-title">Week so far</div><div class="card"><div class="hint" style="margin:0;font-size:12.5px">Through '+dow(d)+': <b style="color:var(--white)">'+fmtN(wt)+' cal</b> deficit over '+wd.length+' day'+(wd.length>1?'s':'')+' (avg '+fmtN(wt/wd.length)+'/day, target '+fmtN(DEFICIT)+').</div>'
+    +'<div class="actions"><button class="btn btn-dark sm" onclick="closeDayView();openWeekView(\''+weekStart(d)+'\')">See the whole week</button></div></div>';
   if(e.notes) h+='<div class="section-title">Notes</div><div class="card" style="font-size:13.5px;line-height:1.5">'+esc(e.notes)+'</div>';
   if(!live(d)&&!(en&&en.seeded)) h+='<div class="empty">Nothing logged this day.</div>';
   $('dayBody').innerHTML=h;
+}
+
+/* ── ONE WEEK, AS A WHOLE ── Mon–Sun; ‹ Prev keeps going back */
+let WV=null;
+function openWeekView(ws){ WV=weekStart(ws); $('weekWrap').classList.add('on'); $('weekWrap').scrollTop=0; document.body.style.overflow='hidden'; renderWeekView(); }
+function closeWeekView(){ WV=null; $('weekWrap').classList.remove('on'); document.body.style.overflow=''; }
+function weekStep(n){ const w=addDays(WV,7*n); if(w>weekStart(todayStr())) return; WV=w; $('weekWrap').scrollTop=0; renderWeekView(); }
+/* everything worth knowing about one week, finished days only */
+function weekSummary(ws){
+  const t=todayStr(), end=addDays(ws,6), days=[];
+  for(let i=0;i<7;i++){ const d=addDays(ws,i); days.push({d,e:live(d),fut:d>t,today:d===t,en:d<t?dayEnergy(d):null}); }
+  const done=days.filter(x=>x.en), tot=done.reduce((a,x)=>a+x.en.def,0);
+  const wts=sorted().filter(x=>live(x).weight!=null);
+  const before=wts.filter(x=>x<ws), inWk=wts.filter(x=>x>=ws&&x<=end);
+  const startW=before.length?live(before[before.length-1]).weight:(inWk.length?live(inWk[0]).weight:null);
+  const endW=inWk.length?live(inWk[inWk.length-1]).weight:null;
+  const avgW=inWk.length?inWk.reduce((a,x)=>a+live(x).weight,0)/inWk.length:null;
+  const prevIn=wts.filter(x=>x>=addDays(ws,-7)&&x<ws), prevAvg=prevIn.length?prevIn.reduce((a,x)=>a+live(x).weight,0)/prevIn.length:null;
+  return {ws,end,days,done,tot,startW,endW,avgW,prevAvg,weighIns:inWk.length};
+}
+function renderWeekView(){
+  const ws=WV, t=todayStr(), cur=weekStart(t), S=weekSummary(ws), n=S.done.length, isCur=ws===cur;
+  $('wvTitle').textContent=(isCur?'This week · ':ws===addDays(cur,-7)?'Last week · ':'')+fmtD(ws)+' – '+fmtD(S.end);
+  $('wvNext').style.visibility=ws<cur?'visible':'hidden';
+  let h='<div class="actions" style="margin:0 0 12px"><button class="btn btn-dark sm" onclick="closeWeekView()">Close</button></div>';
+  // deficit
+  const goal=DEFICIT*7, hitDays=S.done.filter(x=>Math.round(x.en.def)>=DEFICIT).length;
+  h+='<div class="section-title">Deficit</div><div class="card">'
+    +'<div class="td-head"><div><div class="td-big '+(n?(S.tot>=DEFICIT*n?'green':S.tot>0?'gold':'red'):'')+'">'+(n?(S.tot<0?'+':'')+fmtN(Math.abs(S.tot)):'–')+'<small>cal</small></div>'
+    +'<div class="td-lbl">'+(n?(S.tot<0?'surplus':'deficit')+' over '+n+' day'+(n>1?'s':'')+(isCur?' so far':''):'no days with food logged')+' · target '+fmtN(goal)+'</div></div>'
+    +(n?'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+(S.tot/3500).toFixed(1)+'</div><div class="td-lbl">≈ lb of fat</div></div>':'')+'</div>'
+    +'<div class="td-stats"><div><b>'+(n?fmtN(S.tot/n):'–')+'</b><span>avg / day</span></div><div><b>'+hitDays+'/'+n+'</b><span>days on target</span></div>'
+    +'<div><b>'+(n?(S.tot-DEFICIT*n>=0?'+':'−')+fmtN(Math.abs(S.tot-DEFICIT*n)):'–')+'</b><span>vs target</span></div></div>'
+    +'<div class="bk-days">'+S.days.map(x=>{
+      const v=x.en?x.en.def:null, cls=(x.today?'now ':'')+(x.d>=addDays(ws,5)?'we ':'')+(v==null?'nd':Math.round(v)>=DEFICIT?'up':'dn');
+      return '<div class="'+cls+'"'+(x.fut?'':' onclick="openDayView(\''+x.d+'\')"')+'><span>'+dow(x.d)+'</span><b>'+(x.fut?'':x.today?'…':v==null?'–':(v<0?'+':'')+fmtN(Math.abs(v)))+'</b></div>';}).join('')+'</div>'
+    +'<div class="hint">Each day’s deficit (burned minus eaten); green hit the '+fmtN(DEFICIT)+' target. Tap a day to open it.</div></div>';
+  // weight
+  if(S.weighIns||S.startW!=null){
+    const ch=S.endW!=null&&S.startW!=null?S.endW-S.startW:null, avgCh=S.avgW!=null&&S.prevAvg!=null?S.avgW-S.prevAvg:null;
+    h+='<div class="section-title">Weight</div><div class="stats">'
+      +'<div class="stat"><div class="v">'+(S.endW!=null?S.endW.toFixed(1):'–')+'</div><div class="k">Last weigh-in</div><div class="d">'+S.weighIns+' this week</div></div>'
+      +'<div class="stat"><div class="v '+(ch==null?'':ch<=0?'green':'red')+'">'+(ch==null?'–':(ch>0?'+':'')+ch.toFixed(1))+'</div><div class="k">Change</div><div class="d">from '+(S.startW!=null?S.startW.toFixed(1):'–')+'</div></div>'
+      +'<div class="stat"><div class="v gold">'+(S.avgW!=null?S.avgW.toFixed(1):'–')+'</div><div class="k">Week avg</div><div class="d">'+(avgCh==null?'':(avgCh>0?'+':'')+avgCh.toFixed(1)+' vs prior')+'</div></div></div>';
+  }
+  // food
+  const fed=S.days.filter(x=>x.e&&x.e.cal!=null&&!x.today);
+  if(fed.length){
+    const av=k=>Math.round(fed.reduce((a,x)=>a+(x.e[k]||0),0)/fed.length), c=av('cal'), p=av('pro'), f=av('fat'), cb=av('carb');
+    h+='<div class="section-title">Nutrition · daily average</div><div class="card">'
+      +bar('Calories',c,T.cal,c>T.cal+100?'var(--red)':'var(--blue)',c+' / '+T.cal)
+      +bar('Protein',p,T.proMax,p<T.proMin?'var(--red)':'var(--gold)',p+'g / '+T.proMin+'+')
+      +bar('Fat',f,T.fatMax,f>T.fatMax?'var(--red)':'var(--purple)',f+'g / '+T.fatMax)
+      +bar('Carbs',cb,T.carb,'var(--teal)',cb+'g')
+      +'<div class="hint">'+fed.length+' day'+(fed.length>1?'s':'')+' logged · protein '+T.proMin+'g+ on '+fed.filter(x=>(x.e.pro||0)>=T.proMin).length+' of them</div></div>';
+  }
+  // training
+  const tr=[], prs=[];
+  S.days.forEach(x=>{ const e=x.e; if(!e) return;
+    const bits=[];
+    if(didLift(e.lift)){ const exs=(e.lift.ex||[]).filter(y=>(y.sets||[]).some(performed));
+      bits.push((e.lift.session||'Lift')+' · '+exs.length+' exercise'+(exs.length>1?'s':''));
+      exs.forEach(y=>{ const pr=DB.prs[canon(y.name)]; if(pr&&pr.d===x.d) prs.push(esc(canon(y.name))+' '+pr.w+'×'+pr.r+' ('+dow(x.d)+')'); }); }
+    if(e.ride) bits.push('Peloton'+(e.ride.out?' '+e.ride.out+' kJ':''));
+    if(e.walk) bits.push('Walk'+(e.walk.mi!=null?' '+e.walk.mi+' mi':''));
+    if(e.hiit) bits.push('HIIT');
+    if(bits.length) tr.push('<div class="dv-ex" style="cursor:pointer" onclick="openDayView(\''+x.d+'\')"><span>'+dow(x.d)+' '+fmtD(x.d)+'</span><span>'+esc(bits.join(' · '))+' ›</span></div>');
+  });
+  const lifts=S.days.filter(x=>x.e&&didLift(x.e.lift)).length, rides=S.days.filter(x=>x.e&&x.e.ride).length, walks=S.days.filter(x=>x.e&&x.e.walk);
+  h+='<div class="section-title">Training</div><div class="stats" style="grid-template-columns:repeat(3,1fr)">'
+    +'<div class="stat"><div class="v">'+lifts+'</div><div class="k">Lifts</div></div>'
+    +'<div class="stat"><div class="v">'+rides+'</div><div class="k">Rides</div></div>'
+    +'<div class="stat"><div class="v">'+walks.reduce((a,x)=>a+(x.e.walk.mi||0),0).toFixed(1)+'</div><div class="k">Walk miles</div></div></div>'
+    +(tr.length?'<div class="card" style="margin-top:10px">'+tr.join('')+'</div>':'')
+    +(prs.length?'<div class="card"><div style="font-weight:700;margin-bottom:4px">🏆 PRs this week</div><div class="hint" style="margin:0;font-size:12.5px">'+prs.join('<br>')+'</div></div>':'');
+  $('weekBody').innerHTML=h;
+}
+/* History: one row per week, newest first, back to the first logged day */
+function renderWeekList(){
+  const el=$('weekList'); if(!el) return;
+  const ds=sorted().filter(d=>!live(d).gv); if(!ds.length){ el.innerHTML='<div class="empty">No weeks logged yet.</div>'; return; }
+  const out=[]; for(let ws=weekStart(todayStr()); ws>=weekStart(ds[0]); ws=addDays(ws,-7)) out.push(ws);
+  el.innerHTML=out.map(ws=>{ const S=weekSummary(ws), n=S.done.length, ch=S.endW!=null&&S.startW!=null?S.endW-S.startW:null;
+    return '<div class="hist" onclick="openWeekView(\''+ws+'\')"><div><div class="hd">'+(ws===weekStart(todayStr())?'This week':fmtD(ws)+' – '+fmtD(S.end))+'</div>'
+      +'<div class="hs">'+(n?fmtN(S.tot)+' cal deficit · avg '+fmtN(S.tot/n)+'/day':'no food logged')+'</div></div>'
+      +'<div class="hv"><b>'+(ch==null?'–':(ch>0?'+':'')+ch.toFixed(1))+'</b><br>lb</div></div>'; }).join('');
 }
 
 /* ── AI COACH ── drafts one session from your history, recovery, the place's
