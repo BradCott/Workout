@@ -28,7 +28,8 @@ Shortcuts app → **+** → name it **Garage Health**. Add these actions in orde
    ```
    https://claude.ai/artifact/98UF2bdZkXxmStaSLqVpBZ#h_[Formatted Date]_w[Weight]_c[Cal]_p[Pro]_cb[Carb]_f[Fat]_ae[Burn]
    ```
-7. **Open URLs** (input: the Text).
+7. **Copy to Clipboard** (input: the Text). This is the backup, see below.
+8. **Open URLs** (input: the Text).
 
 Keep the link on one line. Anything after a space or line break is cut off, so
 check the box under the last action after a run and make sure every number is there.
@@ -58,6 +59,12 @@ the day updates them.
 To make it automatic: Shortcuts → **Automation** → **+** → *Time of Day* (e.g. 9 pm) →
 *Run Immediately* → Garage Health. It still opens the app. iOS won't let a web page
 sync silently in the background.
+
+## If the app opens but nothing fills in
+
+Sometimes iOS opens the app but drops the numbers from the end of the link. Because
+step 7 copies the link too, go to **Log** → **From Apple Health**, tap the box and paste.
+The numbers fill in straight away, the same as if the link had worked.
 
 ## Pasting instead
 

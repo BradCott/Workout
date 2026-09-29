@@ -378,7 +378,7 @@
   <div class="section-title">From Apple Health</div>
   <div class="card">
     <div class="hk-sum" id="hkSum"></div>
-    <textarea id="hkIn" rows="2" placeholder="Run your Garage Health shortcut, then paste here."></textarea>
+    <textarea id="hkIn" rows="2" placeholder="If the Shortcut opened the app but nothing filled in, paste its link here."></textarea>
     <div style="height:8px"></div>
     <button class="btn btn-gold" onclick="applyHealth()">Add Health data</button>
     <div class="hint" id="hkStatus">Weight and MyFitnessPal totals, via Apple Health. Fills in weight and macros only — lifts, cardio and notes are never touched.</div>
@@ -2186,7 +2186,8 @@ function parseHealth(txt){
 function applyHealth(txt){
   const src=txt==null?$('hkIn').value:txt;
   if(!src.trim()){ toast('Tap the box and paste first'); return; }
-  const recs=parseHealth(src);
+  const link=/#h[_~]/i.test(src)&&hashHealthText(src.trim());   // the Shortcut's link, pasted whole
+  const recs=parseHealth(link?link.text:src);
   if(!recs.length){ toast('No numbers found — paste the text your shortcut copied'); return; }
   flushSave();                                             // pending edits land before we merge
   const now=Date.now(), fb=formDate||todayStr(), out=[];
@@ -2218,8 +2219,8 @@ $('hkIn').addEventListener('paste',()=>setTimeout(()=>applyHealth(),0));   // pa
    (ae = Active Energy burned today, re = Resting Energy)
    Only letters, digits . _ ~ - survive in the link, hence this compact form.
    Applied once per distinct link, after the synced data has loaded. */
-function hashHealthText(){
-  let h=(location.hash||'').replace(/^#/,'');
+function hashHealthText(src){
+  let h=String(src!=null?src:location.hash||'').replace(/^[^#]*#/,'');
   try{ h=decodeURIComponent(h); }catch(e){}
   h=h.replace(/\s+/g,'').replace(/,/g,'').replace(/(lb|lbs|kcal|cal|g)(?=[_~]|$)/gi,'');   // tolerate spaces, commas, units
   if(!/^h[_~]/i.test(h)) return null;
