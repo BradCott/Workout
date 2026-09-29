@@ -2367,6 +2367,18 @@ function usualMaint(){
   const act=a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
   return {m:(rmr(t)+ACT_TRUST*act)*C.k,n:a.length};
 }
+/* backup for when iOS opens the app but drops the numbers from the link: the Shortcut
+   also copies the link, and this reads it back from the clipboard */
+async function pasteHealth(){
+  let t='';
+  try{ t=await navigator.clipboard.readText(); }catch(e){}
+  if(/#h[_~]|date\s*:/i.test(t||'')){ applyHealth(t); return; }
+  go('log',document.querySelectorAll('nav button')[2]); loadForm(todayStr());
+  const b=$('hkIn'); b.scrollIntoView({block:'center'}); b.focus();
+  toast(t?'That isn’t the Shortcut’s link. Run it again, then paste here':'Tap the box, then Paste');
+}
+const hkBtn = e=>'<div class="actions" style="align-items:center"><button class="btn btn-dark sm" onclick="pasteHealth()">Paste from Shortcut</button>'
+  +'<span class="hint" style="margin:0">'+(e.hkT?'Health last updated '+(ymd(new Date(e.hkT))===todayStr()?'':'on '+fmtD(ymd(new Date(e.hkT)))+' ')+new Date(e.hkT).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'If the Shortcut opened the app but nothing changed')+'</span></div>';
 function renderToday(){
   const el=$('todayCard'); if(!el) return;
   const {e,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room,endDef}=energyNow();
@@ -2390,7 +2402,7 @@ function renderToday(){
   if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
     el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
       +(()=>{ const u=usualMaint(); return eqStrip(u.m,'maintenance*')
-        +'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
+        +hkBtn(e)+'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
     return;
   }
   el.innerHTML='<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
@@ -2402,6 +2414,7 @@ function renderToday(){
     +'<div class="td-stats"><div><b>'+fmtN(restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(actNow)+'</b><span>active · watch '+fmtN(act)+'</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div>'
       +'<div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein · '+T.proMin+'g+</span></div><div><b>'+(room>=0?fmtN(room):'+'+fmtN(-room))+'</b><span>'+(room>=0?'left to eat':'over')+'</span></div></div>'
     +'<div class="td-call">'+call+'</div>'
+    +hkBtn(e)
     +coachHtml
     +'<div class="hint">Maintenance = everything you’ll burn today: resting all day plus active, projected to bedtime. Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
       +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
