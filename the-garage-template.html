@@ -1456,6 +1456,9 @@ async function load(){
   localOK=writeLocal();
   if(!localOK) setBanner('nostore');
   render(); renderPlan(); restoreSession();
+  // a Health link lands now, before any network wait: the two halves of a day merge
+  // separately, so numbers applied here can't be lost to the cloud copy loaded below
+  applyHashHealth();
 
   const use = (window.claude && window.claude.use) ? window.claude.use.bind(window.claude) : null;
   if(!use) diag('artifactNs','no window.claude.use — not running as a published artifact');
@@ -3103,7 +3106,9 @@ function doSave(){
   const e=readForm(); if(!e.date) return;
   if(!hasContent(e)){ $('saveState').textContent=''; return; }
   e.u=Date.now(); e.uL=e.u;
-  { const p=live(e.date); e.uH=!p||HK_FIELDS.some(k=>!['hk','hkT','burnA','burnR'].includes(k)&&(p[k]??null)!==(e[k]??null))?e.u:uH(p); }
+  // Health half only counts as edited when you typed a Health number yourself; a new day
+  // with just a lift must not outrank Health data another device sent earlier
+  { const p=live(e.date); e.uH=HK_FIELDS.some(k=>!['hk','hkT','burnA','burnR'].includes(k)&&((p||{})[k]??null)!==(e[k]??null))?e.u:p?uH(p):0; }
   const before=DB.prs||{};
   DB.days[e.date]=e;
   DB.prs=computePRs();
@@ -3254,7 +3259,7 @@ function resetAll(){
 let rsT=null;
 window.addEventListener('resize',()=>{clearTimeout(rsT);rsT=setTimeout(()=>{drawWeight();drawRides();drawWalks();},150)});
 setSync('local');
-load().catch(()=>{}).then(applyHashHealth);   // after cloud data merges, so a Health link never overwrites newer logs
+load().catch(()=>{}).then(applyHashHealth);   // no-op unless load() failed before applying the link
 </script>
 
 
