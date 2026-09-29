@@ -267,6 +267,13 @@
   .td-stats b{display:block;font-family:var(--disp);font-size:22px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
   .td-stats span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono)}
   .td-call{font-size:14px;font-weight:600;line-height:1.45;margin-top:12px}
+  /* maintenance − deficit = what to eat today */
+  .td-eq{display:flex;align-items:stretch;gap:4px;margin-top:12px}
+  .td-eq div{flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 2px 7px;text-align:center}
+  .td-eq i{align-self:center;font-style:normal;color:var(--muted);font-size:15px;flex:none}
+  .td-eq b{display:block;font-family:var(--disp);font-size:24px;font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+  .td-eq span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-family:var(--mono)}
+  .td-eq .eat{border-color:var(--gold)}.td-eq .eat b{color:var(--gold)}
   .coach{border-top:1px solid var(--border);margin-top:12px;padding-top:4px}
   .co{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
   .co:last-child{border-bottom:none}
@@ -2350,6 +2357,16 @@ function dayEnergy(d){
   const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
   return {C,R,rest,act,watch:e.burnA||0,burn,eaten:e.cal,def:burn-e.cal,partial:h<20,noBurn:!e.burnA};
 }
+/* the day's budget in one line: maintenance − deficit = calories to eat */
+const eqStrip = (maint,label)=>'<div class="td-eq"><div><b>'+fmtN(maint)+'</b><span>'+(label||'maintenance')+'</span></div><i>−</i>'
+  +'<div><b>'+fmtN(DEFICIT)+'</b><span>deficit</span></div><i>=</i><div class="eat"><b>'+fmtN(maint-DEFICIT)+'</b><span>eat today</span></div></div>';
+/* before today's watch data arrives: resting burn plus your usual active burn lately */
+function usualMaint(){
+  const t=todayStr(), C=calib(), a=[];
+  for(let i=1;i<=7;i++){ const e=live(addDays(t,-i)); if(e&&e.burnA>0) a.push(e.burnA); }
+  const act=a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+  return {m:(rmr(t)+ACT_TRUST*act)*C.k,n:a.length};
+}
 function renderToday(){
   const el=$('todayCard'); if(!el) return;
   const {e,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room,endDef}=energyNow();
@@ -2372,19 +2389,21 @@ function renderToday(){
   const coachHtml=items.length?'<div class="coach">'+items.map(it=>'<div class="co"><div class="ci">'+it.i+'</div><div class="ct"><b>'+esc(it.t)+'</b><span>'+esc(it.s)+'</span></div>'+(it.b?'<button onclick="'+it.fn+'">'+it.b+'</button>':'')+'</div>').join('')+'</div>':'';
   if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
     el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
-      +'<div class="hint">Target: '+fmtN(DEFICIT)+' cal under what you burn each day ('+GOAL_LBWK+' lb/week). Resting burn ~'+fmtN(R)+'.</div>'+coachHtml;
+      +(()=>{ const u=usualMaint(); return eqStrip(u.m,'maintenance*')
+        +'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
     return;
   }
   el.innerHTML='<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
       +'<div class="td-lbl">for a '+fmtN(DEFICIT)+' deficit by bedtime</div></div>'
       +'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+(endDef>=0?'−':'+')+fmtN(Math.abs(endDef))+'</div><div class="td-lbl">if you stop eating</div></div></div>'
+    +eqStrip(burnEnd)
     +'<div class="td-meter"><i style="width:'+pct(eaten)+'%;background:'+(room>=0?'var(--blue)':'var(--red)')+'"></i><b style="left:'+pct(target)+'%"></b></div>'
     +'<div class="chart-note" style="margin-top:2px"><span>Eaten vs. bedtime burn · line = target</span><span>'+fmtN(target)+' target</span></div>'
     +'<div class="td-stats"><div><b>'+fmtN(restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(actNow)+'</b><span>active · watch '+fmtN(act)+'</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div>'
-      +'<div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(burnEnd)+'</b><span>burn by bedtime</span></div><div><b>'+fmtN(target)+'</b><span>eat target</span></div></div>'
+      +'<div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein · '+T.proMin+'g+</span></div><div><b>'+(room>=0?fmtN(room):'+'+fmtN(-room))+'</b><span>'+(room>=0?'left to eat':'over')+'</span></div></div>'
     +'<div class="td-call">'+call+'</div>'
     +coachHtml
-    +'<div class="hint">Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
+    +'<div class="hint">Maintenance = everything you’ll burn today: resting all day plus active, projected to bedtime. Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
       +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
 }
 
@@ -2487,7 +2506,7 @@ function renderDayView(){
     const x=energyNow();
     h+=x.eaten||x.act?'<div class="td-head"><div><div class="td-big '+(x.endDef>=DEFICIT?'green':x.endDef>DEFICIT*0.5?'gold':'red')+'">'+(x.endDef<0?'+':'')+fmtN(Math.abs(x.endDef))+'<small>cal</small></div>'
       +'<div class="td-lbl">'+(x.endDef<0?'surplus':'deficit')+' by bedtime if you stop eating</div></div></div>'
-      +'<div class="td-stats"><div><b>'+fmtN(x.restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(x.actNow)+'</b><span>active · watch '+fmtN(x.act)+'</span></div><div><b>'+fmtN(x.burnEnd)+'</b><span>burn by bedtime</span></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(x.restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(x.actNow)+'</b><span>active · watch '+fmtN(x.act)+'</span></div><div><b>'+fmtN(x.burnEnd)+'</b><span>maintenance</span></div>'
       +'<div><b>'+fmtN(x.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(x.target)+'</b><span>eat target</span></div><div><b>'+(x.room>=0?fmtN(x.room):'+'+fmtN(-x.room))+'</b><span>'+(x.room>=0?'left to eat':'over')+'</span></div></div>'
       :'<div class="empty">No Health numbers for today yet.</div>';
   } else if(en&&en.seeded){
@@ -2498,7 +2517,7 @@ function renderDayView(){
     h+='<div class="td-head"><div><div class="td-big '+(en.def>=DEFICIT?'green':en.def>DEFICIT*0.5?'gold':'red')+'">'+(en.def<0?'+':'')+fmtN(Math.abs(en.def))+'<small>cal</small></div>'
       +'<div class="td-lbl">'+(en.def<0?'surplus':'deficit')+' for the day</div></div>'
       +'<div style="text-align:right"><div class="td-big" style="font-size:26px;color:'+(miss>=0?'var(--green)':'var(--red)')+'">'+(miss>=0?'+':'−')+fmtN(Math.abs(miss))+'</div><div class="td-lbl">vs '+fmtN(DEFICIT)+' target</div></div></div>'
-      +'<div class="td-stats"><div><b>'+fmtN(en.rest)+'</b><span>resting</span></div><div><b>'+fmtN(en.act)+'</b><span>active · watch '+fmtN(en.watch)+'</span></div><div><b>'+fmtN(en.burn)+'</b><span>burned</span></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(en.rest)+'</b><span>resting</span></div><div><b>'+fmtN(en.act)+'</b><span>active · watch '+fmtN(en.watch)+'</span></div><div><b>'+fmtN(en.burn)+'</b><span>maintenance</span></div>'
       +'<div><b>'+fmtN(en.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(en.burn-DEFICIT)+'</b><span>eat target</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein</span></div></div>'
       +(en.partial||en.noBurn?'<div class="hint">'+(en.noBurn?'No burn data was sent for this day, so only resting burn is counted.':'Health numbers were last sent before 8 PM, so the day may be missing food or burn.')+'</div>':'');
   } else h+='<div class="empty">No food logged this day.</div>';
