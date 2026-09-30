@@ -24,10 +24,14 @@ Shortcuts app → **+** → name it **Garage Health**. Add these actions in orde
    *Total Fat* → **Fat** and *Active Energy* → **Burn** (unit *kcal*). Burn is what
    powers the Today card's deficit and workout suggestions.
 5. **Date** → *Current Date*, then **Format Date** → *Custom*: `yyyy-MM-dd`.
+   Add a second **Format Date** on *Current Date* → *Custom*: `HHmmss`, and rename it **Stamp**.
 6. **Text**: type this on one line, inserting the variables (blue bubbles) where shown:
    ```
-   https://claude.ai/artifact/98UF2bdZkXxmStaSLqVpBZ#h_[Formatted Date]_w[Weight]_c[Cal]_p[Pro]_cb[Carb]_f[Fat]_ae[Burn]
+   https://claude.ai/artifact/98UF2bdZkXxmStaSLqVpBZ?r=[Stamp]#h_[Formatted Date]_w[Weight]_c[Cal]_p[Pro]_cb[Carb]_f[Fat]_ae[Burn]
    ```
+   `?r=[Stamp]` makes every run a brand-new link. Without it, when the app is already
+   open iOS can treat the link as the page you're on and switch to it without passing
+   the numbers along.
 7. **Copy to Clipboard** (input: the Text). This is the backup, see below.
 8. **Open URLs** (input: the Text).
 

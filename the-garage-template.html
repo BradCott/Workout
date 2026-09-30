@@ -2255,6 +2255,17 @@ function applyHashHealth(){
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
 }
 window.addEventListener('hashchange',applyHashHealth);
+/* When the app is already open, iOS brings it forward and the link may land in the
+   address without a hashchange event, or a moment after. Look again whenever the app
+   comes to the front, for a few seconds. */
+let hkWatch=null;
+function watchHashHealth(){
+  applyHashHealth(); clearInterval(hkWatch); let n=0;
+  hkWatch=setInterval(()=>{ if(/#h[_~]/i.test(location.hash||'')) applyHashHealth(); if(++n>=16) clearInterval(hkWatch); },500);
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') watchHashHealth(); });
+window.addEventListener('focus',watchHashHealth);
+window.addEventListener('pageshow',watchHashHealth);
 
 /* ── ENERGY BALANCE · the Today card on Home ──
    Burned = resting burn for the whole day (estimated: the watch comes off at night)
