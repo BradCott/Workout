@@ -89,6 +89,10 @@
 
   canvas{width:100%;display:block}
   .chart-note{font-size:11px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;gap:8px}
+  /* weight + active chart: drag sideways to scrub, vertical swipes still scroll the page */
+  .scrub{touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  .wread-h{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px}
+  .wread-h b{font-size:14px}
 
   .mrow{display:flex;align-items:center;gap:10px;margin:8px 0}
   .mrow .ml{width:52px;font-size:12px;color:var(--muted)}
@@ -339,8 +343,14 @@
     <div class="stat"><div class="v" id="sRate">–</div><div class="k">lb / week</div><div class="d" id="sRateD"></div></div>
   </div>
   <div class="card" style="margin-top:10px">
-    <canvas id="wChart" height="170"></canvas>
-    <div class="chart-note"><span>Daily weigh-ins · bright line = 7-day average</span><span id="wRange"></span></div>
+    <div class="chips" id="wRangeChips" style="margin:0 0 4px"></div>
+    <div class="scrub" id="wScrub">
+      <canvas id="wChart" height="170"></canvas>
+      <div class="mini" style="margin:8px 0 2px">Active calories · from your watch</div>
+      <canvas id="aChart" height="72"></canvas>
+    </div>
+    <div class="chart-note"><span>Bright line = 7-day avg · drag to see any day</span><span id="wRange"></span></div>
+    <div id="wRead"></div>
   </div>
 
   <div class="section-title">Nutrition · last 7 days</div>
@@ -1653,45 +1663,93 @@ function noData(ctx,W,H,msg,rangeId){
   ctx.fillText(msg,(W-ctx.measureText(msg).width)/2,H/2);
   if(rangeId) $(rangeId).textContent='';
 }
-function drawWeight(){
-  const win=last7(), {ctx,W,H}=chartCtx('wChart',170);
-  const pts=win.map(d=>{const e=live(d);return {d,w:(e&&e.weight!=null)?e.weight:null}});
-  if(!pts.some(p=>p.w!=null)){ noData(ctx,W,H,'Log a weigh-in to start the chart','wRange'); return; }
-
-  // trailing 7-day average from the FULL history, plotted across the visible window
-  const all=sorted().filter(x=>live(x).weight!=null);
-  const avgAt=d=>{const sl=all.filter(x=>x<=d).slice(-7);return sl.length?sl.reduce((s,x)=>s+live(x).weight,0)/sl.length:null};
-  const avgs=win.map(avgAt);
-
-  const vals=pts.map(p=>p.w).concat(avgs).filter(v=>v!=null);
-  let lo=Math.min.apply(null,vals)-1, hi=Math.max.apply(null,vals)+1;
-  if(hi-lo<2){const m=(hi+lo)/2;lo=m-1;hi=m+1;}
-  const pad={l:36,r:10,t:12,b:22};
-  const X=i=>pad.l+i*(W-pad.l-pad.r)/6;
-  const Y=w=>pad.t+(hi-w)/(hi-lo)*(H-pad.t-pad.b);
-
-  ctx.strokeStyle=cssv('--border','#2a2a2a');ctx.lineWidth=1;ctx.fillStyle=cssv('--muted','#666');ctx.font='10px Inter, sans-serif';
-  for(let g=Math.ceil(lo);g<=hi;g++){ctx.beginPath();ctx.moveTo(pad.l,Y(g));ctx.lineTo(W-pad.r,Y(g));ctx.stroke();ctx.fillText(g,4,Y(g)+3);}
-
-  // daily line — skip gaps, don't invent data
-  ctx.strokeStyle='#555';ctx.lineWidth=1.5;ctx.beginPath();
-  let started=false;
-  pts.forEach((p,i)=>{ if(p.w==null){started=false;return} started?ctx.lineTo(X(i),Y(p.w)):ctx.moveTo(X(i),Y(p.w)); started=true; });
-  ctx.stroke();
-
-  // 7-day average
-  ctx.strokeStyle=cssv('--gold','#f5a623');ctx.lineWidth=2.5;ctx.beginPath();
-  let s2=false;
-  avgs.forEach((a,i)=>{ if(a==null){s2=false;return} s2?ctx.lineTo(X(i),Y(a)):ctx.moveTo(X(i),Y(a)); s2=true; });
-  ctx.stroke();
-
-  pts.forEach((p,i)=>{ if(p.w==null)return; const lastPt=i===6||pts.slice(i+1).every(q=>q.w==null);
-    ctx.fillStyle=lastPt?cssv('--white','#f0f0f0'):'#888'; ctx.beginPath(); ctx.arc(X(i),Y(p.w),lastPt?3.6:2.6,0,7); ctx.fill(); });
-
-  ctx.fillStyle=cssv('--muted','#666');ctx.font='10px Inter, sans-serif';
-  win.forEach((d,i)=>{const l=DAYL(d);ctx.fillText(l,X(i)-ctx.measureText(l).width/2,H-6)});
-  $('wRange').textContent=fmtD(win[0])+' – '+fmtD(win[6]);
+/* ── WEIGHT + ACTIVE CALORIES ── two charts on one shared day axis (never two
+   y-scales on one chart), with a scrub line: drag across either one to read any day */
+let WCH={days:14,sel:null};
+const W_RANGES=[[7,'1W'],[14,'2W'],[30,'1M'],[0,'All']];
+function wWindow(){
+  const t=todayStr(); let n=WCH.days;
+  if(!n){ const real=sorted().filter(d=>!live(d).gv&&(live(d).weight!=null||live(d).burnA>0));
+    n=real.length?Math.round((Date.parse(t)-Date.parse(real[0]))/864e5)+1:7; n=Math.max(7,n); }
+  return Array.from({length:n},(_,i)=>addDays(t,-(n-1)+i));
 }
+function drawWeight(){
+  $('wRangeChips').innerHTML=W_RANGES.map(([n,l])=>'<button class="chip'+(WCH.days===n?' on':'')+'" onclick="WCH.days='+n+';WCH.sel=null;drawWeight()">'+l+'</button>').join('');
+  const win=wWindow(), n=win.length, {ctx,W,H}=chartCtx('wChart',170), A=chartCtx('aChart',72);
+  const pad={l:36,r:12,t:12,b:8};
+  const X=i=>pad.l+(n<2?0:i*(W-pad.l-pad.r)/(n-1));
+  const muted=cssv('--muted','#666'), grid=cssv('--border','#2a2a2a'), ink=cssv('--white','#f0f0f0'), gold=cssv('--gold','#f5a623'), teal=cssv('--teal','#2dd4bf');
+  const wt=win.map(d=>{const e=live(d);return e&&e.weight!=null?e.weight:null});
+  const act=win.map(d=>{const e=live(d);return e&&e.burnA>0?e.burnA:null});
+  // the day the readout shows: the one you're dragging over, else the latest with data
+  let sel=WCH.sel!=null&&WCH.sel<n?WCH.sel:null;
+  if(sel==null){ sel=n-1; for(let i=n-1;i>=0;i--) if(wt[i]!=null||act[i]!=null){ sel=i; break; } }
+  Object.assign(WCH,{win,X,cur:sel});
+  ctx.font='10px Inter, sans-serif';
+  if(!wt.some(v=>v!=null)) noData(ctx,W,H,'Log a weigh-in to start the chart');
+  else {
+    const all=sorted().filter(x=>live(x).weight!=null);
+    const avgAt=d=>{const sl=all.filter(x=>x<=d).slice(-7);return sl.length&&sl[sl.length-1]>=addDays(d,-7)?sl.reduce((s,x)=>s+live(x).weight,0)/sl.length:null};
+    const avgs=win.map(avgAt), vals=wt.concat(avgs).filter(v=>v!=null);
+    let lo=Math.min(...vals)-1, hi=Math.max(...vals)+1;
+    if(hi-lo<2){const m=(hi+lo)/2;lo=m-1;hi=m+1;}
+    const Y=w=>pad.t+(hi-w)/(hi-lo)*(H-pad.t-pad.b), step=Math.max(1,Math.ceil((hi-lo)/6));
+    ctx.strokeStyle=grid;ctx.lineWidth=1;ctx.fillStyle=muted;
+    for(let g=Math.ceil(lo/step)*step;g<=hi;g+=step){ctx.beginPath();ctx.moveTo(pad.l,Y(g));ctx.lineTo(W-pad.r,Y(g));ctx.stroke();ctx.fillText(g,4,Y(g)+3);}
+    const line=(arr,col,w)=>{ ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineJoin='round';ctx.beginPath(); let on=false;
+      arr.forEach((v,i)=>{ if(v==null){on=false;return;} on?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(i),Y(v)); on=true; }); ctx.stroke(); };
+    line(wt,'#6b7a90',1.5); line(avgs,gold,2.5);
+    const r=n>21?1.8:2.6;
+    wt.forEach((v,i)=>{ if(v==null||i===sel) return; ctx.fillStyle='#8a97a8'; ctx.beginPath(); ctx.arc(X(i),Y(v),r,0,7); ctx.fill(); });
+    ctx.strokeStyle=ink;ctx.globalAlpha=.35;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(sel),pad.t-6);ctx.lineTo(X(sel),H);ctx.stroke();ctx.globalAlpha=1;
+    if(wt[sel]!=null){ ctx.fillStyle=cssv('--surface','#161616'); ctx.beginPath(); ctx.arc(X(sel),Y(wt[sel]),6,0,7); ctx.fill();
+      ctx.fillStyle=ink; ctx.beginPath(); ctx.arc(X(sel),Y(wt[sel]),4.2,0,7); ctx.fill(); }
+  }
+  // active calories: own chart, own scale, same days underneath
+  { const c=A.ctx, h=A.H, pb=16, top=10, mx=Math.max(400,...act.filter(v=>v!=null))*1.1;
+    const Ya=v=>top+(1-v/mx)*(h-top-pb), slot=n<2?20:(W-pad.l-pad.r)/(n-1), bw=Math.max(2,Math.min(14,slot*0.62));
+    c.font='10px Inter, sans-serif'; c.fillStyle=muted; c.fillText(fmtN(Math.round(mx/1.1/100)*100),4,Ya(Math.round(mx/1.1/100)*100)+3);
+    c.strokeStyle=grid; c.lineWidth=1; c.beginPath(); c.moveTo(pad.l,Ya(0)); c.lineTo(W-pad.r,Ya(0)); c.stroke();
+    act.forEach((v,i)=>{ if(v==null) return; const x=X(i)-bw/2, y=Ya(v), hh=Ya(0)-y;
+      c.globalAlpha=i===sel?1:.55; c.fillStyle=teal; c.beginPath();
+      if(c.roundRect) c.roundRect(x,y,bw,hh,[Math.min(3,bw/2),Math.min(3,bw/2),0,0]); else c.rect(x,y,bw,hh); c.fill(); });
+    c.globalAlpha=1;
+    c.strokeStyle=ink;c.globalAlpha=.35;c.beginPath();c.moveTo(X(sel),0);c.lineTo(X(sel),Ya(0));c.stroke();c.globalAlpha=1;
+    // day labels: every day for a week, otherwise ~6 dates
+    c.fillStyle=muted; const every=n<=7?1:Math.ceil(n/6);
+    win.forEach((d,i)=>{ if((n-1-i)%every) return; const l=n<=7?DAYL(d):(+d.slice(5,7))+'/'+(+d.slice(8));
+      const w=c.measureText(l).width; c.fillText(l,Math.min(W-w-2,Math.max(pad.l-w/2,X(i)-w/2)),h-3); }); }
+  $('wRange').textContent=fmtD(win[0])+' – '+fmtD(win[n-1]);
+  renderWRead(win[sel]);
+}
+/* the numbers for one day, under the chart */
+function renderWRead(d){
+  const e=live(d)||{}, t=todayStr(), prevW=sorted().filter(x=>x<d&&live(x).weight!=null).pop();
+  const all=sorted().filter(x=>x<=d&&live(x).weight!=null).slice(-7), avg=all.length?all.reduce((s,x)=>s+live(x).weight,0)/all.length:null;
+  const ch=e.weight!=null&&prevW?e.weight-live(prevW).weight:null;
+  let def=null, defL='deficit';
+  if(d===t){ const x=energyNow(); if(x.eaten){ def=x.endDef; defL='if you stop now'; } }
+  else { const en=dayEnergy(d); if(en) def=en.def; }
+  const cell=(v,l)=>'<div><b>'+v+'</b><span>'+l+'</span></div>';
+  $('wRead').innerHTML='<div class="wread-h"><b>'+(d===t?'Today · ':'')+dow(d)+' '+fmtD(d)+'</b><button class="add-link" style="padding:0" onclick="openDayView(\''+d+'\')">Open day ›</button></div>'
+    +'<div class="td-stats">'
+    +cell(e.weight!=null?e.weight.toFixed(1):'–','weight'+(ch!=null?' · '+(ch>0?'+':'')+ch.toFixed(1):''))
+    +cell(avg!=null?avg.toFixed(1):'–','7-day avg')
+    +cell(e.burnA>0?fmtN(e.burnA):'–','active cal')
+    +cell(e.cal!=null?fmtN(e.cal):'–','eaten')
+    +cell(e.pro!=null?e.pro+'g':'–','protein')
+    +cell(def==null?'–':(def<0?'+':'')+fmtN(Math.abs(def)),def!=null&&def<0?'surplus':defL)
+    +'</div>';
+}
+(function(){
+  const el=$('wScrub'); let down=false;
+  const pick=ev=>{ if(!WCH.win) return; const x=ev.clientX-$('wChart').getBoundingClientRect().left;
+    let best=0, bd=1e9; WCH.win.forEach((d,i)=>{ const dd=Math.abs(WCH.X(i)-x); if(dd<bd){ bd=dd; best=i; } });
+    if(best!==WCH.cur){ WCH.sel=best; drawWeight(); } else WCH.sel=best; };
+  el.addEventListener('pointerdown',ev=>{ down=true; pick(ev); });
+  el.addEventListener('pointermove',ev=>{ if(down||ev.pointerType==='mouse') pick(ev); });
+  ['pointerup','pointercancel'].forEach(t=>el.addEventListener(t,()=>{ down=false; }));
+})();
 function bars7(id,H,pick,color,label,rangeId,fmt){
   const win=last7(), {ctx,W}=chartCtx(id,H);
   const vals=win.map(d=>{const e=live(d);return e?(pick(e)||0):0});
