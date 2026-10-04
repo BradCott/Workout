@@ -1680,7 +1680,7 @@ function drawWeight(){
   const X=i=>pad.l+(n<2?0:i*(W-pad.l-pad.r)/(n-1));
   const muted=cssv('--muted','#666'), grid=cssv('--border','#2a2a2a'), ink=cssv('--white','#f0f0f0'), gold=cssv('--gold','#f5a623'), teal=cssv('--teal','#2dd4bf');
   const wt=win.map(d=>{const e=live(d);return e&&e.weight!=null?e.weight:null});
-  const act=win.map(d=>{const e=live(d);return e&&e.burnA>0?e.burnA:null});
+  const act=win.map(d=>{const e=live(d);return e&&actCal(e)>0?actCal(e):null});
   // the day the readout shows: the one you're dragging over, else the latest with data
   let sel=WCH.sel!=null&&WCH.sel<n?WCH.sel:null;
   if(sel==null){ sel=n-1; for(let i=n-1;i>=0;i--) if(wt[i]!=null||act[i]!=null){ sel=i; break; } }
@@ -1735,7 +1735,7 @@ function renderWRead(d){
     +'<div class="td-stats">'
     +cell(e.weight!=null?e.weight.toFixed(1):'–','weight'+(ch!=null?' · '+(ch>0?'+':'')+ch.toFixed(1):''))
     +cell(avg!=null?avg.toFixed(1):'–','7-day avg')
-    +cell(e.burnA>0?fmtN(e.burnA):'–','active cal')
+    +cell(actCal(e)>0?fmtN(actCal(e)):'–','active cal')
     +cell(e.cal!=null?fmtN(e.cal):'–','eaten')
     +cell(e.pro!=null?e.pro+'g':'–','protein')
     +cell(def==null?'–':(def<0?'+':'')+fmtN(Math.abs(def)),def!=null&&def<0?'surplus':defL)
@@ -2342,7 +2342,10 @@ function rmr(d){
   if(ME.age&&ME.heightIn) return Math.round(10*kg+6.25*ME.heightIn*2.54-5*ME.age+(ME.sex==='f'?-161:5));
   return Math.round(lb*8.2);   // rough stand-in until age + height are set in the config
 }
-const rawBurn = e=>rmr(e&&e.date)+ACT_TRUST*((e&&e.burnA)||0);
+/* active calories: what the watch sent plus any time it was off, entered by hand */
+const actCal = e=>((e&&e.burnA)||0)+((e&&e.burnX)||0);
+const watchLbl = (w,x)=>'active · watch '+fmtN(w)+(x?' + '+fmtN(x)+' off':'');
+const rawBurn = e=>rmr(e&&e.date)+ACT_TRUST*actCal(e);
 /* What the numbers said you burned vs what the scale says happened, over the last
    4 weeks. Needs 14+ days with food and burn logged and 8+ weigh-ins spanning 2 weeks. */
 function calib(){
@@ -2411,10 +2414,10 @@ function coachItems(e,room,C){
 /* today so far, and projected to bedtime */
 function energyNow(){
   const t=todayStr(), e=live(t)||{}, now=new Date(), h=now.getHours()+now.getMinutes()/60;
-  const C=calib(), R=rmr(t), hrsLeft=Math.max(0,BEDTIME-h), act=e.burnA||0;
+  const C=calib(), R=rmr(t), hrsLeft=Math.max(0,BEDTIME-h), act=actCal(e);
   const restNow=R*h/24*C.k, actNow=ACT_TRUST*act*C.k, burnNow=restNow+actNow;   // split so resting and active read separately
   const burnEnd=(R+ACT_TRUST*(act+IDLE_ACTIVE_HR*hrsLeft))*C.k, eaten=e.cal||0, target=burnEnd-DEFICIT;
-  return {e,h,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room:target-eaten,endDef:burnEnd-eaten};
+  return {e,h,C,R,act,watch:e.burnA||0,miss:e.burnX||0,restNow,actNow,burnNow,burnEnd,eaten,target,room:target-eaten,endDef:burnEnd-eaten};
 }
 /* a finished day: the whole day's resting burn + what the watch sent, minus what you ate.
    null when no food was logged (unless the day's deficit was entered by hand) */
@@ -2422,9 +2425,9 @@ function dayEnergy(d){
   const e=live(d);
   if((!e||e.cal==null)&&BANK_SEED[d]!=null) return {seeded:true,def:BANK_SEED[d]};
   if(!e||e.cal==null) return null;
-  const C=calib(), R=rmr(d), rest=R*C.k, act=ACT_TRUST*(e.burnA||0)*C.k, burn=rest+act;
+  const C=calib(), R=rmr(d), rest=R*C.k, act=ACT_TRUST*actCal(e)*C.k, burn=rest+act;
   const h=e.hkT&&ymd(new Date(e.hkT))===d?new Date(e.hkT).getHours():24;
-  return {C,R,rest,act,watch:e.burnA||0,burn,eaten:e.cal,def:burn-e.cal,partial:h<20,noBurn:!e.burnA};
+  return {C,R,rest,act,watch:e.burnA||0,miss:e.burnX||0,burn,eaten:e.cal,def:burn-e.cal,partial:h<20,noBurn:!actCal(e)};
 }
 /* the day's budget in one line: maintenance − deficit = calories to eat */
 const eqStrip = (maint,label)=>'<div class="td-eq"><div><b>'+fmtN(maint)+'</b><span>'+(label||'maintenance')+'</span></div><i>−</i>'
@@ -2432,7 +2435,7 @@ const eqStrip = (maint,label)=>'<div class="td-eq"><div><b>'+fmtN(maint)+'</b><s
 /* before today's watch data arrives: resting burn plus your usual active burn lately */
 function usualMaint(){
   const t=todayStr(), C=calib(), a=[];
-  for(let i=1;i<=7;i++){ const e=live(addDays(t,-i)); if(e&&e.burnA>0) a.push(e.burnA); }
+  for(let i=1;i<=7;i++){ const e=live(addDays(t,-i)); if(e&&e.burnA>0) a.push(actCal(e)); }
   const act=a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
   return {m:(rmr(t)+ACT_TRUST*act)*C.k,n:a.length};
 }
@@ -2448,6 +2451,35 @@ async function pasteHealth(){
 }
 const hkBtn = e=>'<div class="actions" style="align-items:center"><button class="btn btn-dark sm" onclick="pasteHealth()">Paste from Shortcut</button>'
   +'<span class="hint" style="margin:0">'+(e.hkT?'Health last updated '+(ymd(new Date(e.hkT))===todayStr()?'':'on '+fmtD(ymd(new Date(e.hkT)))+' ')+new Date(e.hkT).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'If the Shortcut opened the app but nothing changed')+'</span></div>';
+/* the watch died or came off: credit those hours at your usual active rate, scaled by
+   how much you were moving. Saved as burnX on the day, added to the watch's number. */
+let WOFF={open:false,h:3,lv:1};
+const OFF_LV=[[0.4,'Sitting'],[1,'Moving'],[1.6,'Walking a lot']];
+function offRate(){   // your usual active cal per waking hour lately
+  const t=todayStr(), a=[];
+  for(let i=1;i<=7;i++){ const e=live(addDays(t,-i)); if(e&&e.burnA>0) a.push(e.burnA); }
+  return a.length?a.reduce((x,y)=>x+y,0)/a.length/16:latestWeight()*0.3;
+}
+const offCal = ()=>Math.round(Math.max(0,WOFF.h||0)*offRate()*OFF_LV[WOFF.lv][0]/10)*10;
+function offRow(e){
+  if(e.burnX) return '<div class="actions" style="align-items:center"><span class="hint" style="margin:0">Watch-off time: <b style="color:var(--white)">+'+fmtN(e.burnX)+'</b> active cal added</span>'
+    +'<button class="add-link" style="padding:0" onclick="setMissed(0)">Remove</button></div>';
+  if(!WOFF.open) return '<div class="actions"><button class="add-link" style="padding:0" onclick="WOFF.open=true;renderToday()">Watch was off for a while? Add that time ›</button></div>';
+  return '<div class="card" style="margin-top:10px;padding:12px"><div class="mini" style="margin:0 0 8px">Time the watch missed today</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="number" inputmode="decimal" step="0.5" min="0" id="offH" value="'+WOFF.h+'" style="width:80px" oninput="WOFF.h=Number(this.value)||0;$(\'offEst\').textContent=fmtN(offCal())"><span class="hint" style="margin:0">hours</span></div>'
+    +'<div class="chips" style="margin:0 0 8px">'+OFF_LV.map(([,l],i)=>'<button class="chip'+(WOFF.lv===i?' on':'')+'" onclick="WOFF.lv='+i+';WOFF.h=Number($(\'offH\').value)||0;renderToday()">'+l+'</button>').join('')+'</div>'
+    +'<div class="actions" style="align-items:center"><button class="btn btn-gold sm" onclick="WOFF.h=Number($(\'offH\').value)||0;setMissed(offCal())">Add <span id="offEst">'+fmtN(offCal())+'</span> cal</button>'
+    +'<button class="btn btn-dark sm" onclick="WOFF.open=false;renderToday()">Cancel</button></div>'
+    +'<div class="hint">Based on your usual ~'+fmtN(offRate())+' active cal an hour. Counted like the watch’s number (×'+ACT_TRUST+').</div></div>';
+}
+function setMissed(v){
+  const t=todayStr(), p=DB.days[t], e=Object.assign({date:t},p&&!p.deleted?p:{});
+  if(v>0) e.burnX=Math.round(v); else delete e.burnX;
+  e.u=Date.now(); e.uL=e.u; e.uH=p&&!p.deleted?uH(p):0;
+  DB.days[t]=e; WOFF.open=false;
+  writeLocal(); render(); queuePush(); refreshForm();
+  toast(v>0?'Added '+fmtN(v)+' active cal':'Removed');
+}
 function renderToday(){
   const el=$('todayCard'); if(!el) return;
   const {e,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room,endDef}=energyNow();
@@ -2471,7 +2503,7 @@ function renderToday(){
   if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
     el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
       +(()=>{ const u=usualMaint(); return eqStrip(u.m,'maintenance*')
-        +hkBtn(e)+'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
+        +hkBtn(e)+offRow(e)+'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
     return;
   }
   el.innerHTML='<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
@@ -2480,12 +2512,12 @@ function renderToday(){
     +eqStrip(burnEnd)
     +'<div class="td-meter"><i style="width:'+pct(eaten)+'%;background:'+(room>=0?'var(--blue)':'var(--red)')+'"></i><b style="left:'+pct(target)+'%"></b></div>'
     +'<div class="chart-note" style="margin-top:2px"><span>Eaten vs. bedtime burn · line = target</span><span>'+fmtN(target)+' target</span></div>'
-    +'<div class="td-stats"><div><b>'+fmtN(restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(actNow)+'</b><span>active · watch '+fmtN(act)+'</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div>'
+    +'<div class="td-stats"><div><b>'+fmtN(restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(actNow)+'</b><span>'+watchLbl(e.burnA||0,e.burnX||0)+'</span></div><div><b>'+fmtN(burnNow)+'</b><span>burned so far</span></div>'
       +'<div><b>'+fmtN(eaten)+'</b><span>eaten</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein · '+T.proMin+'g+</span></div><div><b>'+(room>=0?fmtN(room):'+'+fmtN(-room))+'</b><span>'+(room>=0?'left to eat':'over')+'</span></div></div>'
     +'<div class="td-call">'+call+'</div>'
-    +hkBtn(e)
+    +hkBtn(e)+offRow(e)
     +coachHtml
-    +'<div class="hint">Maintenance = everything you’ll burn today: resting all day plus active, projected to bedtime. Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+' from Health ×'+ACT_TRUST
+    +'<div class="hint">Maintenance = everything you’ll burn today: resting all day plus active, projected to bedtime. Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+(e.burnX?' (watch + '+fmtN(e.burnX)+' while it was off)':' from Health')+' ×'+ACT_TRUST
       +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
 }
 
@@ -2588,7 +2620,7 @@ function renderDayView(){
     const x=energyNow();
     h+=x.eaten||x.act?'<div class="td-head"><div><div class="td-big '+(x.endDef>=DEFICIT?'green':x.endDef>DEFICIT*0.5?'gold':'red')+'">'+(x.endDef<0?'+':'')+fmtN(Math.abs(x.endDef))+'<small>cal</small></div>'
       +'<div class="td-lbl">'+(x.endDef<0?'surplus':'deficit')+' by bedtime if you stop eating</div></div></div>'
-      +'<div class="td-stats"><div><b>'+fmtN(x.restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(x.actNow)+'</b><span>active · watch '+fmtN(x.act)+'</span></div><div><b>'+fmtN(x.burnEnd)+'</b><span>maintenance</span></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(x.restNow)+'</b><span>resting so far</span></div><div><b>'+fmtN(x.actNow)+'</b><span>'+watchLbl(x.watch,x.miss)+'</span></div><div><b>'+fmtN(x.burnEnd)+'</b><span>maintenance</span></div>'
       +'<div><b>'+fmtN(x.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(x.target)+'</b><span>eat target</span></div><div><b>'+(x.room>=0?fmtN(x.room):'+'+fmtN(-x.room))+'</b><span>'+(x.room>=0?'left to eat':'over')+'</span></div></div>'
       :'<div class="empty">No Health numbers for today yet.</div>';
   } else if(en&&en.seeded){
@@ -2599,7 +2631,7 @@ function renderDayView(){
     h+='<div class="td-head"><div><div class="td-big '+(en.def>=DEFICIT?'green':en.def>DEFICIT*0.5?'gold':'red')+'">'+(en.def<0?'+':'')+fmtN(Math.abs(en.def))+'<small>cal</small></div>'
       +'<div class="td-lbl">'+(en.def<0?'surplus':'deficit')+' for the day</div></div>'
       +'<div style="text-align:right"><div class="td-big" style="font-size:26px;color:'+(miss>=0?'var(--green)':'var(--red)')+'">'+(miss>=0?'+':'−')+fmtN(Math.abs(miss))+'</div><div class="td-lbl">vs '+fmtN(DEFICIT)+' target</div></div></div>'
-      +'<div class="td-stats"><div><b>'+fmtN(en.rest)+'</b><span>resting</span></div><div><b>'+fmtN(en.act)+'</b><span>active · watch '+fmtN(en.watch)+'</span></div><div><b>'+fmtN(en.burn)+'</b><span>maintenance</span></div>'
+      +'<div class="td-stats"><div><b>'+fmtN(en.rest)+'</b><span>resting</span></div><div><b>'+fmtN(en.act)+'</b><span>'+watchLbl(en.watch,en.miss)+'</span></div><div><b>'+fmtN(en.burn)+'</b><span>maintenance</span></div>'
       +'<div><b>'+fmtN(en.eaten)+'</b><span>eaten</span></div><div><b>'+fmtN(en.burn-DEFICIT)+'</b><span>eat target</span></div><div><b>'+(e.pro!=null?e.pro+'g':'–')+'</b><span>protein</span></div></div>'
       +(en.partial||en.noBurn?'<div class="hint">'+(en.noBurn?'No burn data was sent for this day, so only resting burn is counted.':'Health numbers were last sent before 8 PM, so the day may be missing food or burn.')+'</div>':'');
   } else h+='<div class="empty">No food logged this day.</div>';
@@ -3191,6 +3223,7 @@ function readForm(){
   e.notes=$('fNotes').value.trim();
   const prev=live(formDate);
   if(prev) ['hk','hkT','burnA','burnR'].forEach(k=>{ if(prev[k]!=null) e[k]=prev[k]; });   // Health-only fields
+  if(prev&&prev.burnX) e.burnX=prev.burnX;   // set from Home, not the form
   return e;
 }
 const hasContent=e=>e.weight!=null||e.cal!=null||e.pro!=null||e.carb!=null||e.fat!=null||e.ride||e.walk||e.hiit||(e.lift&&e.lift.ex.length)||e.notes;
