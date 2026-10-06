@@ -2305,9 +2305,13 @@ function applyHashHealth(){
   if(raw && $('hkStatus')) $('hkStatus').textContent='Link received: '+raw.slice(0,120);
   const r=hashHealthText();
   if(!r){ if(raw) toast('Link had no Health numbers'); return; }
-  let last=null; try{ last=localStorage.getItem('garage:hk:last'); }catch(e){}
-  if(last===r.key) return;                                  // this exact link was already applied
-  try{ localStorage.setItem('garage:hk:last',r.key); }catch(e){}
+  // skip only a repeat of the SAME run (iOS can deliver one link twice). Each Shortcut run
+  // adds its own ?r= stamp, so a new run with unchanged numbers (watch off, no food yet)
+  // still lands. A link with no stamp counts as a repeat for 3 minutes.
+  const nonce=(location.search.match(/[?&]r=([^&]*)/)||[])[1]||'', key=r.key+'|'+nonce;
+  let last=null; try{ last=JSON.parse(localStorage.getItem('garage:hk:last')||'null'); }catch(e){}
+  if(last&&last.k===key&&(nonce||Date.now()-(last.at||0)<180000)) return;
+  try{ localStorage.setItem('garage:hk:last',JSON.stringify({k:key,at:Date.now()})); }catch(e){}
   applyHealth(r.text);
   if(currentView!=='dash') go('dash',document.querySelectorAll('nav button')[0]);
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
