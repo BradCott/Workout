@@ -2351,20 +2351,26 @@ const actCal = e=>((e&&e.burnA)||0)+((e&&e.burnX)||0);
 const watchLbl = (w,x)=>'active · watch '+fmtN(w)+(x?' + '+fmtN(x)+' off':'');
 const rawBurn = e=>rmr(e&&e.date)+ACT_TRUST*actCal(e);
 /* What the numbers said you burned vs what the scale says happened, over the last
-   4 weeks. Needs 14+ days with food and burn logged and 8+ weigh-ins spanning 2 weeks. */
+   8 weeks. Day-to-day weigh-ins swing 5–10 lb with water and salt, so a short window
+   lies: it waits for weigh-ins spanning 4 weeks (and 21 days with food and burn), never
+   moves burn more than 10%, and phases in, 20% of the correction at 4 weeks, all of it
+   at 8. Past days are rescored with it, so it has to move slowly. */
+const CAL_SPAN = 28, CAL_FULL = 56, CAL_MAX = 0.10;
 function calib(){
-  const t=todayStr(), days=sorted().filter(d=>d>=addDays(t,-28)&&d<t);
+  const t=todayStr(), days=sorted().filter(d=>d>=addDays(t,-CAL_FULL)&&d<t);
   const fed=days.filter(d=>{const e=live(d);return e.cal>0&&e.burnA>0;});
   const wts=days.filter(d=>live(d).weight!=null);
-  const no={k:1,n:fed.length,ready:false};
-  if(fed.length<14||wts.length<8) return no;
+  const span=wts.length?Math.round((Date.parse(wts[wts.length-1])-Date.parse(wts[0]))/864e5):0;
+  const no={k:1,n:span,ready:false};
+  if(span<CAL_SPAN||fed.length<21||wts.length<12) return no;
   const x0=Date.parse(wts[0]), xs=wts.map(d=>(Date.parse(d)-x0)/864e5), ys=wts.map(d=>live(d).weight);
-  if(xs[xs.length-1]<14) return no;
   const mx=xs.reduce((a,b)=>a+b)/xs.length, my=ys.reduce((a,b)=>a+b)/ys.length;
   const slope=xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0)/xs.reduce((a,x)=>a+(x-mx)*(x-mx),0);   // lb per day
   const eat=fed.reduce((a,d)=>a+live(d).cal,0)/fed.length;
   const est=fed.reduce((a,d)=>a+rawBurn(live(d)),0)/fed.length;
-  return {k:Math.min(1.2,Math.max(0.8,(eat-slope*3500)/est)),n:fed.length,ready:true};
+  const raw=Math.min(1+CAL_MAX,Math.max(1-CAL_MAX,(eat-slope*3500)/est));
+  const w=Math.min(1,0.2+0.8*(span-CAL_SPAN)/(CAL_FULL-CAL_SPAN));
+  return {k:1+(raw-1)*w,raw,w,n:span,ready:true};
 }
 /* cal/min for each kind of session — your own rides and walks when there are any */
 function burnRates(){
@@ -2522,7 +2528,7 @@ function renderToday(){
     +hkBtn(e)+offRow(e)
     +coachHtml
     +'<div class="hint">Maintenance = everything you’ll burn today: resting all day plus active, projected to bedtime. Resting ~'+fmtN(R)+(ME.age&&ME.heightIn?'':' (rough: add age + height)')+' · active '+fmtN(act)+(e.burnX?' (watch + '+fmtN(e.burnX)+' while it was off)':' from Health')+' ×'+ACT_TRUST
-      +' · '+(C.ready?'calibrated ×'+C.k.toFixed(2)+' from your weight trend':'calibrates from your weight trend after 14 days of food + burn ('+C.n+' so far)')+stale+noBurn+'</div>';
+      +' · '+(C.ready?'adjusted ×'+C.k.toFixed(2)+' from your weight trend ('+Math.round(C.w*100)+'% phased in)':'adjusts to your weight trend once weigh-ins span 4 weeks ('+C.n+' days so far)')+stale+noBurn+'</div>';
 }
 
 /* ── WEEKEND BANK ── every day this week is scored against its own target
