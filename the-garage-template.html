@@ -2340,7 +2340,19 @@ window.addEventListener('pageshow',watchHashHealth);
           + active calories from Apple Health (Watch, Peloton, MapMyRun…), trusted at 85%
           × a correction learned from the real weight trend once there's enough data.
    The daily deficit target comes from GOAL_LBWK (3,500 cal ≈ 1 lb). */
-const DEFICIT = Math.round(GOAL_LBWK*3500/7);
+const DEFICIT_BASE = Math.round(GOAL_LBWK*3500/7);
+/* Nov 2026: added a maintenance-mode switch (diet break) and a Today-card trend line. */
+/* Maintenance mode (diet break): hold weight on purpose, no deficit. Per-device,
+   like the Look setting. DEFICIT is read at render time everywhere, so flipping this
+   and re-rendering updates every card. */
+let MAINT = (()=>{ try{ return localStorage.getItem('garage:maint')==='1'; }catch(e){ return false; } })();
+let DEFICIT = MAINT ? 0 : DEFICIT_BASE;
+function setMaint(on){
+  MAINT=!!on; DEFICIT = MAINT ? 0 : DEFICIT_BASE;
+  try{ localStorage.setItem('garage:maint', MAINT?'1':'0'); }catch(e){}
+  render();
+  toast(MAINT ? 'Maintenance mode on — holding weight' : 'Back to cutting — '+fmtN(DEFICIT_BASE)+' cal deficit');
+}
 const ACT_TRUST = 0.85;        // wrist trackers run high; the weight trend corrects the rest
 const IDLE_ACTIVE_HR = 30;     // active cal/hour from just moving around, for the rest-of-day projection
 const fmtN = n=>Math.round(n).toLocaleString('en-US');
@@ -2446,7 +2458,9 @@ function dayEnergy(d){
   return {C,R,rest,act,watch:e.burnA||0,miss:e.burnX||0,burn,eaten:e.cal,def:burn-e.cal,partial:h<20,noBurn:!actCal(e)};
 }
 /* the day's budget in one line: maintenance − deficit = calories to eat */
-const eqStrip = (maint,label)=>'<div class="td-eq"><div><b>'+fmtN(maint)+'</b><span>'+(label||'maintenance')+'</span></div><i>−</i>'
+const eqStrip = (maint,label)=> MAINT
+  ? '<div class="td-eq"><div class="eat" style="flex:1"><b>'+fmtN(maint)+'</b><span>eat today · maintenance</span></div></div>'
+  : '<div class="td-eq"><div><b>'+fmtN(maint)+'</b><span>'+(label||'maintenance')+'</span></div><i>−</i>'
   +'<div><b>'+fmtN(DEFICIT)+'</b><span>deficit</span></div><i>=</i><div class="eat"><b>'+fmtN(maint-DEFICIT)+'</b><span>eat today</span></div></div>';
 /* before today's watch data arrives: resting burn plus your usual active burn lately */
 function usualMaint(){
@@ -2496,6 +2510,35 @@ function setMissed(v){
   writeLocal(); render(); queuePush(); refreshForm();
   toast(v>0?'Added '+fmtN(v)+' active cal':'Removed');
 }
+/* lb/week off the last 4 weeks of weigh-ins (same trend line as the Cut stat),
+   plus the 7-day average — one source for the Today-card headline. */
+function weeklyRate(){
+  const t=todayStr(), wd=sorted().filter(x=>live(x).weight!=null);
+  if(!wd.length) return null;
+  const l7=wd.slice(-7).map(x=>live(x).weight), a7=l7.reduce((a,b)=>a+b,0)/l7.length;
+  const tw=wd.filter(x=>x>addDays(t,-28)), t0=Date.parse(t);
+  const xs=tw.map(x=>(Date.parse(x)-t0)/864e5), ys=tw.map(x=>live(x).weight);
+  let rate=null;
+  if(tw.length>=8 && xs[xs.length-1]-xs[0]>=14){
+    const mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=ys.reduce((a,b)=>a+b,0)/ys.length;
+    rate=-7*xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0)/xs.reduce((a,x)=>a+(x-mx)*(x-mx),0);
+  }
+  return {rate, a7, n:l7.length};
+}
+/* Trend readout + the maintenance-mode switch, pinned to the top of the Today card. */
+function todayTopHtml(){
+  const r=weeklyRate();
+  let trend='<span style="font-size:12px;color:var(--muted)">No weigh-ins yet</span>';
+  if(r){
+    if(r.rate==null) trend='<span style="font-size:12px;color:var(--muted)">7-day avg <b style="color:var(--white)">'+r.a7.toFixed(1)+'</b> · need ~2 weeks of weigh-ins for a rate</span>';
+    else { const dn=r.rate>=0;
+      trend='<span style="font-size:12px;color:var(--muted)">Trend <b style="color:'+(dn?'var(--green)':'var(--red)')+'">'+(dn?'−':'+')+Math.abs(r.rate).toFixed(1)+' lb/wk</b> · 7-day avg <b style="color:var(--white)">'+r.a7.toFixed(1)+'</b></span>'; }
+  }
+  const tog = MAINT
+    ? '<button class="btn sm" style="width:100%;padding:9px;font-size:12px;font-weight:700;background:var(--gold-dim);border:1px solid var(--gold);color:var(--gold)" onclick="setMaint(false)">● MAINTENANCE · diet break — tap to resume cutting</button>'
+    : '<button class="add-link" style="padding:0;font-size:12px;text-align:left" onclick="setMaint(true)">Switch to maintenance (diet break) ›</button>';
+  return '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+trend+tog+'</div>';
+}
 function renderToday(){
   const el=$('todayCard'); if(!el) return;
   const {e,C,R,act,restNow,actNow,burnNow,burnEnd,eaten,target,room,endDef}=energyNow();
@@ -2503,10 +2546,12 @@ function renderToday(){
   let call, cls;
   if(!e.cal&&!act){ call='No Health numbers for today yet. Run your Shortcut after you log food.'; cls='gold'; }
   else if(room>=0){ cls='green';
-    call='On track. Eat up to <b>'+fmtN(room)+'</b> more and still finish '+fmtN(DEFICIT)+' under ('+GOAL_LBWK+' lb/week pace).';
+    call=MAINT?'Maintenance day. You can eat <b>'+fmtN(room)+'</b> more to reach maintenance — holding weight on purpose while your metabolism resets.'
+      :'On track. Eat up to <b>'+fmtN(room)+'</b> more and still finish '+fmtN(DEFICIT)+' under ('+GOAL_LBWK+' lb/week pace).';
     if(proNeed>0) call+=' You still need <b>'+proNeed+'g protein</b>'+(proNeed*4>room*0.7?', so make it lean: chicken, egg whites, a shake.':'.'); }
-  else { cls=endDef>DEFICIT*0.5?'gold':'red';
-    call='<b>'+fmtN(-room)+' over</b> for a '+fmtN(DEFICIT)+' deficit. '+(endDef>0
+  else { cls=MAINT?'gold':(endDef>DEFICIT*0.5?'gold':'red');
+    call=MAINT?'<b>'+fmtN(-room)+' over</b> maintenance today. Fine on a break — just ease back tomorrow.'
+      :'<b>'+fmtN(-room)+' over</b> for a '+fmtN(DEFICIT)+' deficit. '+(endDef>0
       ?'Stop eating now and you finish '+fmtN(endDef)+' under (~'+(endDef*7/3500).toFixed(1)+' lb/week pace), or burn the rest below.'
       :'That’s a surplus of '+fmtN(-endDef)+' today. Burn some below and go lighter tomorrow.'); }
   const stale=e.hkT&&Date.now()-e.hkT>90*60000?' · Health from '+new Date(e.hkT).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})+', run the Shortcut to refresh':'';
@@ -2517,13 +2562,13 @@ function renderToday(){
   if(SAMPLE && !didLift(e.lift)) items.unshift({i:'AI',t:'Draft today’s lift with AI',s:'Say how you feel or what you want: “knee hurts, no lunges”, “huge arms today”',b:'Draft',fn:'openAI()'});
   const coachHtml=items.length?'<div class="coach">'+items.map(it=>'<div class="co"><div class="ci">'+it.i+'</div><div class="ct"><b>'+esc(it.t)+'</b><span>'+esc(it.s)+'</span></div>'+(it.b?'<button onclick="'+it.fn+'">'+it.b+'</button>':'')+'</div>').join('')+'</div>':'';
   if(!e.cal&&!act){   // nothing from Health yet: no numbers to project from
-    el.innerHTML='<div class="td-call" style="margin-top:0">'+call+'</div>'
+    el.innerHTML=todayTopHtml()+'<div class="td-call" style="margin-top:0">'+call+'</div>'
       +(()=>{ const u=usualMaint(); return eqStrip(u.m,'maintenance*')
-        +hkBtn(e)+offRow(e)+'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).</div>'; })()+coachHtml;
+        +hkBtn(e)+offRow(e)+'<div class="hint">*Estimated: resting burn ~'+fmtN(R)+(u.n?' plus your average active burn over the last '+u.n+' day'+(u.n>1?'s':''):'')+'. Updates to the real number once the Shortcut sends today’s burn. '+(MAINT?'Target: maintenance — diet break, holding weight on purpose.':'Target: '+fmtN(DEFICIT)+' under maintenance ('+GOAL_LBWK+' lb/week).')+'</div>'; })()+coachHtml;
     return;
   }
-  el.innerHTML='<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
-      +'<div class="td-lbl">for a '+fmtN(DEFICIT)+' deficit by bedtime</div></div>'
+  el.innerHTML=todayTopHtml()+'<div class="td-head"><div><div class="td-big '+cls+'">'+(room>=0?fmtN(room):'+'+fmtN(-room))+'<small>'+(room>=0?'cal left to eat':'cal over')+'</small></div>'
+      +'<div class="td-lbl">'+(MAINT?'to hit maintenance by bedtime':'for a '+fmtN(DEFICIT)+' deficit by bedtime')+'</div></div>'
       +'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+(endDef>=0?'−':'+')+fmtN(Math.abs(endDef))+'</div><div class="td-lbl">if you stop eating</div></div></div>'
     +eqStrip(burnEnd)
     +'<div class="td-meter"><i style="width:'+pct(eaten)+'%;background:'+(room>=0?'var(--blue)':'var(--red)')+'"></i><b style="left:'+pct(target)+'%"></b></div>'
@@ -2609,7 +2654,7 @@ function renderWeekDef(){
       +(today!=null?'<div style="text-align:right"><div class="td-big" style="font-size:26px">'+sign(tot+today)+'</div><div class="td-lbl">with today, if you stop eating</div></div>':'')+'</div>'
     +'<div class="td-stats"><div><b>'+(n?fmtN(tot/n):'–')+'</b><span>avg / day</span></div><div><b>'+(n?(tot/3500).toFixed(1):'–')+'</b><span>≈ lb lost</span></div>'
       +'<div><b>'+fmtN(Math.max(0,goal-tot))+'</b><span>left to target</span></div></div>'
-    +'<div class="hint">Deficit = everything you burned minus what you ate, day by day (target '+fmtN(DEFICIT)+'/day). Tap any day in the week strip to see it in full.'+(lastLine?' '+lastLine:'')+'</div>'
+    +'<div class="hint">Deficit = everything you burned minus what you ate, day by day ('+(MAINT?'maintenance — no deficit target this week':'target '+fmtN(DEFICIT)+'/day')+'). Tap any day in the week strip to see it in full.'+(lastLine?' '+lastLine:'')+'</div>'
     +'<div class="actions"><button class="btn btn-dark sm" onclick="openWeekView(\''+addDays(ws,-7)+'\')">‹ Last week</button><button class="btn btn-dark sm" onclick="openWeekView(\''+ws+'\')">This week in full</button></div>';
 }
 
